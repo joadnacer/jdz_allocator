@@ -37,13 +37,45 @@ zimalloc was excluded from the memory usage charts due to too high memory usage 
 ![image](https://i.imgur.com/MINQn7b.png)
 
 # Usage
-The allocator can be used as follows:
-```zig
-var jdz = jdz_allocator.JdzAllocator(.{}).init();
-defer jdz.deinit();
+Currently this project has been built for Zig 0.11.0. The allocator can be used as follows:
 
-var allocator = jdz.allocator();
-// -- use --
+Create a build.zig.zon file like this:
+```zig
+.{
+    .name = "testlib",
+    .version = "0.0.1",
+
+    .dependencies = .{
+        .jdz_allocator = .{
+            .url = "https://github.com/joadnacer/jdz_allocator/archive/b113d1bcd31517288f7944540e3d3442c4bbc074.tar.gz",
+            .hash = "12209ebe1706bdc24645993d4fad1b2031e86656d8038cf96ae9058d0216ed4a9ad8" },
+    },
+}
+
+```
+
+Add these lines to your build.zig:
+```zig
+const jdz_allocator = b.dependency("jdz_allocator", .{
+.target = target,
+.optimize = optimize,
+});
+
+exe.addModule("jdz_allocator", jdz_allocator.module("jdz_allocator"));
+```
+
+Use as follows:
+```zig
+const jdz_allocator = @import("jdz_allocator");
+
+pub fn main() !void {
+    var jdz = jdz_allocator.JdzAllocator(.{}).init();
+    defer jdz.deinit();
+    const allocator = jdz.allocator();
+
+    const res = try allocator.alloc(u8, 8);
+    defer allocator.free(res);
+}
 ```
 
 # Design
