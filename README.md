@@ -15,7 +15,7 @@ This allocator currently does not support page sizes larger than 64KiB.
 
 # Benchmarks
 The allocator has been benchmarked against Zig std's GeneralPurposeAllocator and c_allocator, as well as InKryption's [rpmalloc Zig port](https://github.com/InKryption/rpmalloc-zig-port) and dweiller's [zimalloc](https://github.com/dweiller/zimalloc). Please note that any mention of rpmalloc in these benchmarks is in reference to the Zig port, not to the original C implementation.
-a
+
 Benchmarks consist of 75,000,000 linearly distributed allocations of 1-80000 bytes per thread, with no cross-thread frees. This is an unrealistic benchmark, and will be improved to further guide development.
 
 jdz_allocator's default configuration performs competitively but is significantly slower than rpmalloc at high contention. Configured as a global allocator, performance is consistently matching rpmalloc's (*), remaining within the margin of error, with considerably less memory usage.
