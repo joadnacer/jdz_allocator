@@ -2,13 +2,14 @@ const std = @import("std");
 const span_stack = @import("span_stack.zig");
 const span_cache = @import("span_cache.zig");
 const stack = @import("bounded_stack.zig");
-const jdz_allocator = @import("allocator.zig");
+const jdz_allocator = @import("jdz_allocator.zig");
 const mpsc_queue = @import("bounded_mpsc_queue.zig");
 const span_file = @import("span.zig");
+const static_config = @import("static_config.zig");
 const utils = @import("utils.zig");
 
 const JdzAllocConfig = jdz_allocator.JdzAllocConfig;
-const SizeClass = jdz_allocator.SizeClass;
+const SizeClass = static_config.SizeClass;
 
 const assert = std.debug.assert;
 
@@ -640,20 +641,20 @@ const MapMode = enum {
     multiple,
 };
 
-const span_size = jdz_allocator.span_size;
-const span_max = jdz_allocator.span_max;
-const span_class = jdz_allocator.span_class;
+const span_size = static_config.span_size;
+const span_max = static_config.span_max;
+const span_class = static_config.span_class;
 
-const page_size = jdz_allocator.page_size;
-const page_alignment = jdz_allocator.page_alignment;
+const page_size = static_config.page_size;
+const page_alignment = static_config.page_alignment;
 
-const span_header_size = jdz_allocator.span_header_size;
-const mod_span_size = jdz_allocator.mod_span_size;
+const span_header_size = static_config.span_header_size;
+const mod_span_size = static_config.mod_span_size;
 
-const size_class_count = jdz_allocator.size_class_count;
-const large_class_count = jdz_allocator.large_class_count;
+const size_class_count = static_config.size_class_count;
+const large_class_count = static_config.large_class_count;
 
-const aligned_spans_offset = jdz_allocator.aligned_spans_offset;
-const aligned_class_count = jdz_allocator.aligned_class_count;
+const aligned_spans_offset = static_config.aligned_spans_offset;
+const aligned_class_count = static_config.aligned_class_count;
 
-const zero_offset = jdz_allocator.zero_offset;
+const zero_offset = static_config.zero_offset;

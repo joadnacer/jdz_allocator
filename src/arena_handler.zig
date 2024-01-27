@@ -1,6 +1,6 @@
 const std = @import("std");
 const span_arena = @import("arena.zig");
-const jdz_allocator = @import("allocator.zig");
+const jdz_allocator = @import("jdz_allocator.zig");
 
 const JdzAllocConfig = jdz_allocator.JdzAllocConfig;
 

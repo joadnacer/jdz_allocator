@@ -1,16 +1,16 @@
 const std = @import("std");
-const jdz_allocator = @import("allocator.zig");
+
+const jdz_allocator = @import("jdz_allocator.zig");
 const mpsc_queue = @import("bounded_mpsc_queue.zig");
 const span_file = @import("span.zig");
+const static_config = @import("static_config.zig");
 const utils = @import("utils.zig");
 
 const testing = std.testing;
 const assert = std.debug.assert;
-const Atomic = std.atomic.Atomic;
-const Ordering = std.atomic.Ordering;
 const JdzAllocConfig = jdz_allocator.JdzAllocConfig;
 
-const span_size = jdz_allocator.span_size;
+const span_size = static_config.span_size;
 
 pub fn SpanCache(comptime config: JdzAllocConfig) type {
     assert(utils.isPowerOfTwo(config.cache_limit));

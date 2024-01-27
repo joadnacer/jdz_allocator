@@ -1,5 +1,5 @@
 const std = @import("std");
-const jdz_allocator = @import("allocator.zig");
+const jdz_allocator = @import("jdz_allocator.zig");
 const utils = @import("utils.zig");
 
 const testing = std.testing;

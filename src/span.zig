@@ -1,14 +1,16 @@
 const std = @import("std");
-const jdz_allocator = @import("allocator.zig");
+
+const jdz_allocator = @import("jdz_allocator.zig");
 const arena = @import("arena.zig");
+const static_config = @import("static_config.zig");
 const utils = @import("utils.zig");
 
-const Atomic = std.atomic.Atomic;
 const JdzAllocConfig = jdz_allocator.JdzAllocConfig;
+const SizeClass = static_config.SizeClass;
 
 const assert = std.debug.assert;
 
-const span_size = jdz_allocator.span_size;
+const span_size = static_config.span_size;
 
 pub fn Span(comptime config: JdzAllocConfig) type {
     const Mutex = utils.getMutexType(config);
@@ -21,7 +23,7 @@ pub fn Span(comptime config: JdzAllocConfig) type {
         next: ?*Self,
         prev: ?*Self,
         alloc_ptr: usize,
-        class: jdz_allocator.SizeClass,
+        class: SizeClass,
         block_count: u16,
         initial_ptr: usize,
         alloc_size: usize,
