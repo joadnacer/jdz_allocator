@@ -38,26 +38,26 @@ fn bench(num_threads: u32) !void {
     try std.io.getStdOut().writer().print("=== Num Threads={} ===\n", .{num_threads});
 
     try std.io.getStdOut().writer().print("==Mixed Alloc==\n", .{});
-    try span_mixed(num_threads);
-    try span_global_mixed(num_threads);
+    try jdz_mixed(num_threads);
+    try jdz_global_mixed(num_threads);
     try c_mixed(num_threads);
     try gpa_mixed(num_threads);
 
     try std.io.getStdOut().writer().print("==Small Alloc==\n", .{});
-    try span_small(num_threads);
-    try span_global_small(num_threads);
+    try jdz_small(num_threads);
+    try jdz_global_small(num_threads);
     try c_small(num_threads);
     try gpa_small(num_threads);
 
     try std.io.getStdOut().writer().print("==Medium Alloc==\n", .{});
-    try span_medium(num_threads);
-    try span_global_medium(num_threads);
+    try jdz_medium(num_threads);
+    try jdz_global_medium(num_threads);
     try c_medium(num_threads);
     try gpa_medium(num_threads);
 
     try std.io.getStdOut().writer().print("==Big Alloc==\n", .{});
-    try span_big(num_threads);
-    try span_global_big(num_threads);
+    try jdz_big(num_threads);
+    try jdz_global_big(num_threads);
     try c_big(num_threads);
     try gpa_big(num_threads);
 
@@ -67,7 +67,7 @@ fn bench(num_threads: u32) !void {
 ///
 /// Mixed
 ///
-fn span_mixed(num_threads: u32) !void {
+fn jdz_mixed(num_threads: u32) !void {
     var jdz_allocator = jdz.JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
     var allocator = jdz_allocator.allocator();
@@ -75,7 +75,7 @@ fn span_mixed(num_threads: u32) !void {
     try runPerfTestAlloc("jdz/mixed", mixed_min, mixed_max, allocator, mixed_rounds, num_threads);
 }
 
-fn span_global_mixed(num_threads: u32) !void {
+fn jdz_global_mixed(num_threads: u32) !void {
     var jdz_allocator = jdz.JdzAllocator(.{ .global_allocator = true }).init();
     defer jdz_allocator.deinit();
     var allocator = jdz_allocator.allocator();
@@ -98,7 +98,7 @@ fn c_mixed(num_threads: u32) !void {
 ///
 /// Small
 ///
-fn span_small(num_threads: u32) !void {
+fn jdz_small(num_threads: u32) !void {
     var jdz_allocator = jdz.JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
     var allocator = jdz_allocator.allocator();
@@ -111,7 +111,7 @@ fn c_small(num_threads: u32) !void {
     try runPerfTestAlloc("c/small", small_min, small_max, allocator, small_rounds, num_threads);
 }
 
-fn span_global_small(num_threads: u32) !void {
+fn jdz_global_small(num_threads: u32) !void {
     var jdz_allocator = jdz.JdzAllocator(.{ .global_allocator = true }).init();
     defer jdz_allocator.deinit();
     var allocator = jdz_allocator.allocator();
@@ -129,7 +129,7 @@ fn gpa_small(num_threads: u32) !void {
 ///
 /// Medium
 ///
-fn span_medium(num_threads: u32) !void {
+fn jdz_medium(num_threads: u32) !void {
     var jdz_allocator = jdz.JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
     var allocator = jdz_allocator.allocator();
@@ -137,7 +137,7 @@ fn span_medium(num_threads: u32) !void {
     try runPerfTestAlloc("jdz/medium", medium_min, medium_max, allocator, medium_rounds, num_threads);
 }
 
-fn span_global_medium(num_threads: u32) !void {
+fn jdz_global_medium(num_threads: u32) !void {
     var jdz_allocator = jdz.JdzAllocator(.{ .global_allocator = true }).init();
     defer jdz_allocator.deinit();
     var allocator = jdz_allocator.allocator();
@@ -160,7 +160,7 @@ fn gpa_medium(num_threads: u32) !void {
 ///
 /// Big
 ///
-fn span_big(num_threads: u32) !void {
+fn jdz_big(num_threads: u32) !void {
     var jdz_allocator = jdz.JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
     var allocator = jdz_allocator.allocator();
@@ -168,7 +168,7 @@ fn span_big(num_threads: u32) !void {
     try runPerfTestAlloc("jdz/big", big_min, big_max, allocator, big_rounds, num_threads);
 }
 
-fn span_global_big(num_threads: u32) !void {
+fn jdz_global_big(num_threads: u32) !void {
     var jdz_allocator = jdz.JdzAllocator(.{ .global_allocator = true }).init();
     defer jdz_allocator.deinit();
     var allocator = jdz_allocator.allocator();
