@@ -31,7 +31,7 @@ pub fn getMutexType(comptime config: JdzAllocConfig) type {
 }
 
 pub fn getArenaLockType(comptime config: JdzAllocConfig) type {
-    return if (config.thread_safe and !config.global_allocator)
+    return if (config.thread_safe)
         lock.Lock
     else
         lock.DummyLock;

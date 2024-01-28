@@ -76,7 +76,7 @@ fn jdz_mixed(num_threads: u32) !void {
 }
 
 fn jdz_global_mixed(num_threads: u32) !void {
-    var jdz_allocator = jdz.JdzAllocator(.{ .global_allocator = true }).init();
+    const jdz_allocator = jdz.JdzGlobalAllocator(.{});
     defer jdz_allocator.deinit();
     var allocator = jdz_allocator.allocator();
 
@@ -112,7 +112,7 @@ fn c_small(num_threads: u32) !void {
 }
 
 fn jdz_global_small(num_threads: u32) !void {
-    var jdz_allocator = jdz.JdzAllocator(.{ .global_allocator = true }).init();
+    const jdz_allocator = jdz.JdzGlobalAllocator(.{});
     defer jdz_allocator.deinit();
     var allocator = jdz_allocator.allocator();
 
@@ -138,7 +138,7 @@ fn jdz_medium(num_threads: u32) !void {
 }
 
 fn jdz_global_medium(num_threads: u32) !void {
-    var jdz_allocator = jdz.JdzAllocator(.{ .global_allocator = true }).init();
+    const jdz_allocator = jdz.JdzGlobalAllocator(.{});
     defer jdz_allocator.deinit();
     var allocator = jdz_allocator.allocator();
 
@@ -169,7 +169,7 @@ fn jdz_big(num_threads: u32) !void {
 }
 
 fn jdz_global_big(num_threads: u32) !void {
-    var jdz_allocator = jdz.JdzAllocator(.{ .global_allocator = true }).init();
+    const jdz_allocator = jdz.JdzGlobalAllocator(.{});
     defer jdz_allocator.deinit();
     var allocator = jdz_allocator.allocator();
 

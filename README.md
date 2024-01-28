@@ -3,9 +3,7 @@ jdz_allocator is an original general purpose allocator inspired by Mattias Janss
 
 In its default configuration, it uses no global or threadlocal vars, making it compatible with Zig allocator design. This allows it to function without the need for any `deinitThread` calls while still achieving reasonable multi-threaded performance.
 
-If multithreaded performance is essential, and cannot be handled appropriately through the use of multiple allocator instances, this allocator can be configured to use threadlocal arenas by setting `global_allocator=true` in the JdzAllocatorConfig. In this mode, make sure to call `deinitThread` before thread termination to free thread memory for re-use.
-
-The global allocator is currently accessed through a JdzAllocator instance rather than the JdzAllocator type, which makes global global use inconvenient and error-prone - this will be addressed shortly.
+If multithreaded performance is essential, and cannot be handled appropriately through the use of multiple allocator instances, a global allocator is available under `jdz_allocator.JdzGlobalAllocator`. With this allocator, make sure to call `deinitThread` before thread termination to free thread memory for re-use. This allocator exists as a singleton.
 
 Please note that this allocator is a work in progress, and has not yet been thoroughly tested. Usage and bug reports are appreciated and will help contribute to this allocator's completion.
 
@@ -18,7 +16,7 @@ The allocator has been benchmarked against Zig std's GeneralPurposeAllocator and
 
 Benchmarks consist of 75,000,000 linearly distributed allocations of 1-80000 bytes per thread, with no cross-thread frees. This is an unrealistic benchmark, and will be improved to further guide development.
 
-jdz_allocator's default configuration performs competitively but is significantly slower than rpmalloc at high contention. Configured as a global allocator, performance is consistently matching rpmalloc's (*), remaining within the margin of error, with considerably less memory usage.
+jdz_allocator's default configuration performs competitively but is significantly slower than rpmalloc at high contention. The global allocator's performance is consistently matching rpmalloc's (*), remaining within the margin of error, with considerably less memory usage.
 
 Benchmarks were run on an 8 core Intel i7-11800H @2.30GHz on Linux in ReleaseFast mode.
 
@@ -71,6 +69,23 @@ const jdz_allocator = @import("jdz_allocator");
 pub fn main() !void {
     var jdz = jdz_allocator.JdzAllocator(.{}).init();
     defer jdz.deinit();
+
+    const allocator = jdz.allocator();
+
+    const res = try allocator.alloc(u8, 8);
+    defer allocator.free(res);
+}
+```
+
+Or if using the global allocator:
+```zig
+const jdz_allocator = @import("jdz_allocator");
+
+pub fn main() !void {
+    var jdz = jdz_allocator.JdzGlobalAllocator(.{});
+    defer jdz.deinit();
+    defer jdz.deinitThread(); // call this from every thread that makes an allocation
+
     const allocator = jdz.allocator();
 
     const res = try allocator.alloc(u8, 8);

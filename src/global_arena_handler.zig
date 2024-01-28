@@ -5,8 +5,6 @@ const utils = @import("utils.zig");
 
 const JdzAllocConfig = jdz_allocator.JdzAllocConfig;
 
-threadlocal var thread_arena: ?*anyopaque = null;
-
 pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
     const Arena = span_arena.Arena(config);
 
@@ -16,6 +14,8 @@ pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
         arena_list: ?*Arena,
         // using mutex as not ABA free - can be done better in future
         mutex: Mutex,
+
+        threadlocal var thread_arena: ?*Arena = null;
 
         const Self = @This();
 
@@ -51,7 +51,7 @@ pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
 
             thread_arena = null;
 
-            self.addArenaToList(@ptrCast(@alignCast(arena)));
+            self.addArenaToList(arena);
         }
 
         pub fn getArena(self: *Self) ?*Arena {
@@ -62,7 +62,7 @@ pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
 
         inline fn getThreadLocalArena() ?*Arena {
             if (thread_arena) |arena| {
-                return @ptrCast(@alignCast(arena));
+                return arena;
             }
 
             return null;
@@ -88,9 +88,9 @@ pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
         fn createArena() ?*Arena {
             @setCold(true);
 
-            var new_arena = config.backing_allocator.create(Arena) catch return null;
+            const new_arena = config.backing_allocator.create(Arena) catch return null;
 
-            new_arena.* = Arena.init(.locked, std.Thread.getCurrentId());
+            new_arena.* = Arena.init(.unlocked, std.Thread.getCurrentId());
 
             thread_arena = new_arena;
 
