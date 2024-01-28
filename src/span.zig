@@ -18,6 +18,8 @@ pub fn Span(comptime config: JdzAllocConfig) type {
     return struct {
         const Self = @This();
 
+        const Arena = arena.Arena(config);
+
         free_list: ?usize,
         mutex: Mutex,
         next: ?*Self,
@@ -28,7 +30,7 @@ pub fn Span(comptime config: JdzAllocConfig) type {
         initial_ptr: usize,
         alloc_size: usize,
         span_count: u32,
-        arena: *anyopaque,
+        arena: *Arena,
 
         pub fn pushFreeList(self: *Self, buf: []u8) void {
             const list = &self.free_list;

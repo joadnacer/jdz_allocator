@@ -20,8 +20,6 @@ pub fn JdzAllocator(comptime config: JdzAllocConfig) type {
 
     const ArenaHandler = handler.ArenaHandler(config);
 
-    const Arena = span_arena.Arena(config);
-
     assert(config.span_alloc_count >= 1);
 
     // currently not supporting page sizes greater than 64KiB
@@ -133,14 +131,13 @@ pub fn JdzAllocator(comptime config: JdzAllocConfig) type {
             const alignment = @as(usize, 1) << @intCast(log2_align);
             const size = @max(alignment, buf.len);
             const span = utils.getSpan(Span, buf);
-            const arena: *Arena = @ptrCast(@alignCast(span.arena));
 
             if (size <= medium_max) {
-                arena.freeSmallOrMedium(span, buf);
+                span.arena.freeSmallOrMedium(span, buf);
             } else if (size <= span_max) {
-                arena.cacheSpanOrFree(span);
+                span.arena.cacheSpanOrFree(span);
             } else if (size <= large_max) {
-                arena.cacheLargeSpanOrFree(span, config.recycle_large_spans);
+                span.arena.cacheLargeSpanOrFree(span, config.recycle_large_spans);
             } else {
                 _ = self.huge_count.fetchSub(1, .Monotonic);
                 self.backing_allocator.rawFree(buf, log2_align, ret_addr);

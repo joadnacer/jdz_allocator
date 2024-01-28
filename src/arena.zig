@@ -72,7 +72,9 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
 
             self.freeEmptySpansFromStacks();
 
-            while (self.cache.tryRead()) |span| self.freeSpan(span);
+            while (self.cache.tryRead()) |span| {
+                self.freeSpan(span);
+            }
 
             for (&self.large_cache) |*large_cache| {
                 while (large_cache.tryRead()) |span| {
