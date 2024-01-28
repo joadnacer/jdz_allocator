@@ -39,13 +39,13 @@ pub fn SpanCache(comptime config: JdzAllocConfig) type {
         }
 
         pub fn tryWriteLarge(self: *Self, large_span: *Span) ?*Span {
-            var to_move = large_span.span_count;
+            const to_move = large_span.span_count;
             assert(to_move <= large_span.alloc_size / span_size);
 
             var remaining_span = large_span;
 
             for (0..to_move) |_| {
-                var cached = remaining_span;
+                const cached = remaining_span;
                 remaining_span = self.cacheFromLargeReturnRemaining(remaining_span) orelse return null;
 
                 // was not written, cache is full

@@ -73,7 +73,7 @@ pub fn ArenaHandler(comptime config: JdzAllocConfig) type {
         fn createArena(self: *Self) ?*Arena {
             @setCold(true);
 
-            var new_arena = config.backing_allocator.create(Arena) catch return null;
+            const new_arena = config.backing_allocator.create(Arena) catch return null;
 
             new_arena.* = Arena.init(.locked, std.Thread.getCurrentId());
 

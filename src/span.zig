@@ -34,13 +34,13 @@ pub fn Span(comptime config: JdzAllocConfig) type {
 
         pub fn pushFreeList(self: *Self, buf: []u8) void {
             const list = &self.free_list;
-            var block: *?usize = @ptrCast(@alignCast(buf.ptr));
+            const block: *?usize = @ptrCast(@alignCast(buf.ptr));
             block.* = list.*;
             list.* = @intFromPtr(block);
         }
 
         pub fn popFreeList(self: *Self) ?usize {
-            var opt_block = self.free_list;
+            const opt_block = self.free_list;
 
             if (opt_block) |block| {
                 self.free_list = @as(*?usize, @ptrFromInt(block)).*;

@@ -483,7 +483,7 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         }
 
         fn instantiateMappedSpan(span_alloc_ptr: usize, alloc_size: usize, map_count: u32) *Span {
-            var after_pad = span_alloc_ptr & (span_size - 1);
+            const after_pad = span_alloc_ptr & (span_size - 1);
             const before_pad = if (after_pad != 0) span_size - after_pad else 0;
             const span_ptr = span_alloc_ptr + before_pad;
 

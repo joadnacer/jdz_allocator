@@ -70,7 +70,7 @@ fn bench(num_threads: u32) !void {
 fn jdz_mixed(num_threads: u32) !void {
     var jdz_allocator = jdz.JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
-    var allocator = jdz_allocator.allocator();
+    const allocator = jdz_allocator.allocator();
 
     try runPerfTestAlloc("jdz/mixed", mixed_min, mixed_max, allocator, mixed_rounds, num_threads);
 }
@@ -78,7 +78,7 @@ fn jdz_mixed(num_threads: u32) !void {
 fn jdz_global_mixed(num_threads: u32) !void {
     const jdz_allocator = jdz.JdzGlobalAllocator(.{});
     defer jdz_allocator.deinit();
-    var allocator = jdz_allocator.allocator();
+    const allocator = jdz_allocator.allocator();
 
     try runPerfTestAlloc("jdz-global/mixed", mixed_min, mixed_max, allocator, mixed_rounds, num_threads);
 }
@@ -91,7 +91,7 @@ fn gpa_mixed(num_threads: u32) !void {
 }
 
 fn c_mixed(num_threads: u32) !void {
-    var allocator = std.heap.c_allocator;
+    const allocator = std.heap.c_allocator;
     try runPerfTestAlloc("c/mixed", mixed_min, mixed_max, allocator, mixed_rounds, num_threads);
 }
 
@@ -101,20 +101,20 @@ fn c_mixed(num_threads: u32) !void {
 fn jdz_small(num_threads: u32) !void {
     var jdz_allocator = jdz.JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
-    var allocator = jdz_allocator.allocator();
+    const allocator = jdz_allocator.allocator();
 
     try runPerfTestAlloc("jdz/small", small_min, small_max, allocator, small_rounds, num_threads);
 }
 
 fn c_small(num_threads: u32) !void {
-    var allocator = std.heap.c_allocator;
+    const allocator = std.heap.c_allocator;
     try runPerfTestAlloc("c/small", small_min, small_max, allocator, small_rounds, num_threads);
 }
 
 fn jdz_global_small(num_threads: u32) !void {
     const jdz_allocator = jdz.JdzGlobalAllocator(.{});
     defer jdz_allocator.deinit();
-    var allocator = jdz_allocator.allocator();
+    const allocator = jdz_allocator.allocator();
 
     try runPerfTestAlloc("jdz-global/small", small_min, small_max, allocator, mixed_rounds, num_threads);
 }
@@ -132,7 +132,7 @@ fn gpa_small(num_threads: u32) !void {
 fn jdz_medium(num_threads: u32) !void {
     var jdz_allocator = jdz.JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
-    var allocator = jdz_allocator.allocator();
+    const allocator = jdz_allocator.allocator();
 
     try runPerfTestAlloc("jdz/medium", medium_min, medium_max, allocator, medium_rounds, num_threads);
 }
@@ -140,13 +140,13 @@ fn jdz_medium(num_threads: u32) !void {
 fn jdz_global_medium(num_threads: u32) !void {
     const jdz_allocator = jdz.JdzGlobalAllocator(.{});
     defer jdz_allocator.deinit();
-    var allocator = jdz_allocator.allocator();
+    const allocator = jdz_allocator.allocator();
 
     try runPerfTestAlloc("jdz-global/medium", medium_min, medium_max, allocator, mixed_rounds, num_threads);
 }
 
 fn c_medium(num_threads: u32) !void {
-    var allocator = std.heap.c_allocator;
+    const allocator = std.heap.c_allocator;
     try runPerfTestAlloc("c/medium", medium_min, medium_max, allocator, medium_rounds, num_threads);
 }
 
@@ -163,7 +163,7 @@ fn gpa_medium(num_threads: u32) !void {
 fn jdz_big(num_threads: u32) !void {
     var jdz_allocator = jdz.JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
-    var allocator = jdz_allocator.allocator();
+    const allocator = jdz_allocator.allocator();
 
     try runPerfTestAlloc("jdz/big", big_min, big_max, allocator, big_rounds, num_threads);
 }
@@ -171,19 +171,19 @@ fn jdz_big(num_threads: u32) !void {
 fn jdz_global_big(num_threads: u32) !void {
     const jdz_allocator = jdz.JdzGlobalAllocator(.{});
     defer jdz_allocator.deinit();
-    var allocator = jdz_allocator.allocator();
+    const allocator = jdz_allocator.allocator();
 
     try runPerfTestAlloc("jdz-global/big", big_min, big_max, allocator, mixed_rounds, num_threads);
 }
 
 fn c_big(num_threads: u32) !void {
-    var allocator = std.heap.c_allocator;
+    const allocator = std.heap.c_allocator;
     try runPerfTestAlloc("c/big", big_min, big_max, allocator, big_rounds, num_threads);
 }
 
 fn gpa_big(num_threads: u32) !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    var allocator = gpa.allocator();
+    const allocator = gpa.allocator();
 
     try runPerfTestAlloc("gpa/big", big_min, big_max, allocator, big_rounds, num_threads);
 }
@@ -211,8 +211,8 @@ fn threadAllocWorker(min: usize, max: usize, allocator: std.mem.Allocator, max_r
 
         if (slots.len > 0) {
             if (rng.float(f32) <= free_chance) {
-                var index = rng.intRangeLessThan(usize, 0, slots.len);
-                var ptr = slots.swapRemove(index);
+                const index = rng.intRangeLessThan(usize, 0, slots.len);
+                const ptr = slots.swapRemove(index);
                 allocator.free(ptr);
 
                 frees += 1;
@@ -221,7 +221,7 @@ fn threadAllocWorker(min: usize, max: usize, allocator: std.mem.Allocator, max_r
 
         if (slots.len < slots.capacity()) {
             if (rng.float(f32) <= alloc_chance) {
-                var item = try allocator.alloc(u8, alloc_amount);
+                const item = try allocator.alloc(u8, alloc_amount);
                 slots.appendAssumeCapacity(item);
 
                 allocs += 1;

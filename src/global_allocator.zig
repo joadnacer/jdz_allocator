@@ -509,7 +509,7 @@ test "large object shrinks to small" {
 
     const allocator = jdz_allocator.allocator();
 
-    var slice = try allocator.alloc(u8, 8192 + 50);
+    const slice = try allocator.alloc(u8, 8192 + 50);
     defer allocator.free(slice);
 
     try std.testing.expect(allocator.resize(slice, 4));
