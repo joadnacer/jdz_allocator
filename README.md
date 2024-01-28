@@ -45,8 +45,8 @@ Create a build.zig.zon file like this:
 
     .dependencies = .{
         .jdz_allocator = .{
-            .url = "https://github.com/joadnacer/jdz_allocator/archive/b113d1bcd31517288f7944540e3d3442c4bbc074.tar.gz",
-            .hash = "12209ebe1706bdc24645993d4fad1b2031e86656d8038cf96ae9058d0216ed4a9ad8" },
+            .url = "https://github.com/joadnacer/jdz_allocator/archive/4fbfaf5883e1f1117dd5b410fdbfef8de23984d3.tar.gz",
+            .hash = "1220e341421a18a8682c5707ed52ef7e60d1d40a723bfa9c9bf16d900fb57c21d480" },
     },
 }
 
@@ -82,7 +82,7 @@ Or if using the global allocator:
 const jdz_allocator = @import("jdz_allocator");
 
 pub fn main() !void {
-    var jdz = jdz_allocator.JdzGlobalAllocator(.{});
+    const jdz = jdz_allocator.JdzGlobalAllocator(.{});
     defer jdz.deinit();
     defer jdz.deinitThread(); // call this from every thread that makes an allocation
 
