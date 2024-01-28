@@ -9,6 +9,7 @@ pub const SizeClass = struct {
     block_size: u32,
     block_max: u32,
     class_idx: u32,
+    aligned: bool,
 };
 
 pub const span_size = 65536;
@@ -58,6 +59,7 @@ pub const span_class = SizeClass{
     .block_max = 1,
     .block_size = span_effective_size,
     .class_idx = small_class_count + medium_class_count,
+    .aligned = false,
 };
 
 fn generateSmallSizeClasses() [small_class_count]SizeClass {
@@ -67,6 +69,7 @@ fn generateSmallSizeClasses() [small_class_count]SizeClass {
         size_classes[i].block_size = (i + 1) * small_granularity;
         size_classes[i].block_max = span_effective_size / size_classes[i].block_size;
         size_classes[i].class_idx = i;
+        size_classes[i].aligned = false;
     }
 
     mergeSizeClasses(&size_classes);
@@ -84,6 +87,7 @@ fn generateMediumSizeClasses() [medium_class_count]SizeClass {
         size_classes[i].block_size = small_max + (i + 1) * medium_granularity;
         size_classes[i].block_max = span_effective_size / size_classes[i].block_size;
         size_classes[i].class_idx = small_class_count + i;
+        size_classes[i].aligned = false;
     }
 
     mergeSizeClasses(&size_classes);
@@ -104,6 +108,7 @@ fn generateAlignedSizeClasses() [aligned_class_count]SizeClass {
         size_classes[i].block_size = block_size;
         size_classes[i].block_max = (span_size - block_size) / block_size;
         size_classes[i].class_idx = i;
+        size_classes[i].aligned = true;
     }
 
     return size_classes;

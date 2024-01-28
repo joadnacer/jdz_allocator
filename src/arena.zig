@@ -578,7 +578,12 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
             span.block_count -= 1;
 
             if (span.block_count + 1 == span.class.block_max) {
-                self.spans[span.class.class_idx].write(span);
+                const spans = if (span.class.aligned)
+                    &self.aligned_spans
+                else
+                    &self.spans;
+
+                spans[span.class.class_idx].write(span);
             }
         }
 
