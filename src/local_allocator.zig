@@ -150,7 +150,7 @@ pub fn JdzAllocator(comptime config: JdzAllocConfig) type {
         fn allocate(self: *Self, size: usize, log2_align: u8, ret_addr: usize) ?[*]u8 {
             if (size <= large_max) {
                 const arena = self.arena_handler.getArena() orelse return null;
-                defer arena.writer_lock.release();
+                defer arena.release();
 
                 return if (size <= small_max)
                     arena.allocateToSpan(utils.getSmallSizeClass(size))
@@ -180,7 +180,7 @@ pub fn JdzAllocator(comptime config: JdzAllocConfig) type {
 
             if (large_aligned_size <= large_max) {
                 const arena = self.arena_handler.getArena() orelse return null;
-                defer arena.writer_lock.release();
+                defer arena.release();
 
                 return if (align_size <= medium_max)
                     arena.alignedAllocateToSpan(utils.getAlignedSizeClass(log2_align))

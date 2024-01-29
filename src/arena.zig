@@ -95,6 +95,10 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
             return self.writer_lock.tryAcquire();
         }
 
+        pub inline fn release(self: *Self) void {
+            self.writer_lock.release();
+        }
+
         ///
         /// Small Or Medium Allocations
         ///
