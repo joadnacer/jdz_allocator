@@ -16,15 +16,13 @@ The allocator has been benchmarked against Zig std's GeneralPurposeAllocator and
 
 Benchmarks consist of 75,000,000 linearly distributed allocations of 1-80000 bytes per thread, with no cross-thread frees. This is an unrealistic benchmark, and will be improved to further guide development.
 
-jdz_allocator's default configuration performs competitively but is significantly slower than rpmalloc at high contention. The global allocator's performance is consistently matching rpmalloc's (*), remaining within the margin of error, with considerably less memory usage.
+jdz_allocator's default configuration performs competitively but is significantly slower than rpmalloc at high contention. The global allocator's performance is consistently matching rpmalloc's, remaining within the margin of error, with considerably less memory usage.
 
 Benchmarks were run on an 8 core Intel i7-11800H @2.30GHz on Linux in ReleaseFast mode.
 
 Benchmarks can be run as follows: `zig run -O ReleaseFast src/bench.zig -lc -- [num_threads...]`.
 
 src/bench.zig in this repo does not contain rpmalloc or zimalloc - more complete benchmarks will eventually be posted to a parallel repository.
-
-(*) it is in reality slightly slower due to the overhead of mutex calls - these will be reduced/removed in future.
 
 ### Performance
 ![image](https://i.imgur.com/54mAujT.png)
