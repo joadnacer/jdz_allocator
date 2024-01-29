@@ -3,7 +3,7 @@ jdz_allocator is an original general purpose allocator inspired by Mattias Janss
 
 In its default configuration, it uses no global or threadlocal vars, making it compatible with Zig allocator design. This allows it to function without the need for any `deinitThread` calls while still achieving reasonable multi-threaded performance.
 
-If multithreaded performance is essential, and cannot be handled appropriately through the use of multiple allocator instances, a global allocator is available under `jdz_allocator.JdzGlobalAllocator`. With this allocator, make sure to call `deinitThread` before thread termination to free thread memory for re-use. This allocator exists as a singleton.
+If multithreaded performance is essential, and cannot be handled appropriately through the use of multiple allocator instances, a global allocator is available under `jdz_allocator.JdzGlobalAllocator`. With this allocator, make sure to call `deinitThread` before thread termination to free thread memory for re-use. This allocator exists as a singleton-per-configuration, with distinct instances existing for different configs.
 
 Please note that this allocator is a work in progress, and has not yet been thoroughly tested. Usage and bug reports are appreciated and will help contribute to this allocator's completion.
 
