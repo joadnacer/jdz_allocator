@@ -18,6 +18,26 @@ pub fn build(b: *std.Build) !void {
 
     b.installArtifact(lib);
 
+    const libjdzglobal = b.addSharedLibrary(.{
+        .name = "jdzglobal",
+        .root_source_file = .{ .path = "src/libjdzglobal.zig" },
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+
+    b.installArtifact(libjdzglobal);
+
+    const libjdzlocal = b.addSharedLibrary(.{
+        .name = "jdzlocal",
+        .root_source_file = .{ .path = "src/libjdzlocal.zig" },
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+
+    b.installArtifact(libjdzlocal);
+
     const tests = b.addTest(.{
         .root_source_file = .{ .path = "src/jdz_allocator.zig" },
         .target = target,

@@ -191,6 +191,22 @@ pub fn JdzAllocator(comptime config: JdzAllocConfig) type {
             _ = self.huge_count.fetchAdd(1, .Monotonic);
             return self.backing_allocator.rawAlloc(size, log2_align, ret_addr);
         }
+
+        /// for mimalloc-bench, does not work for huge allocs
+        pub fn usableSize(self: *Self, ptr: *anyopaque) usize {
+            _ = self;
+
+            const byte_ptr: [*]u8 = @ptrCast(ptr);
+            const slice = byte_ptr[0..1];
+
+            const span = utils.getSpan(Span, slice);
+
+            if (span.span_count == 1) {
+                return span.class.block_size;
+            }
+
+            return span.alloc_size - (span.alloc_ptr - span.initial_ptr);
+        }
     };
 }
 
