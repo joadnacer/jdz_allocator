@@ -13,6 +13,8 @@ const SizeClass = static_config.SizeClass;
 
 const assert = std.debug.assert;
 
+const cache_line = std.atomic.cache_line;
+
 pub fn Arena(comptime config: JdzAllocConfig) type {
     const Span = span_file.Span(config);
 
@@ -34,9 +36,9 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         cache: ArenaSpanCache,
         large_cache: [large_class_count - 1]ArenaLargeCache,
         map_cache: [large_class_count]ArenaMapCache,
-        writer_lock: Lock,
-        thread_id: ?std.Thread.Id,
-        next: ?*Self,
+        writer_lock: Lock align(cache_line),
+        thread_id: ?std.Thread.Id align(cache_line),
+        next: ?*Self align(cache_line),
 
         const Self = @This();
 
