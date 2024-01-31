@@ -44,8 +44,10 @@ export fn realloc(ptr_opt: ?*anyopaque, len: usize) ?*anyopaque {
 export fn free(ptr_opt: ?*anyopaque) void {
     log.debug("free {?*}", .{ptr_opt});
     if (ptr_opt) |ptr| {
+        const old_size = allocator_type.usableSize(ptr);
         const bytes_ptr: [*]u8 = @ptrCast(ptr);
-        const old_slice = bytes_ptr[0..1];
+        const old_slice = bytes_ptr[0..old_size];
+
         allocator.free(old_slice);
     }
 }
