@@ -165,16 +165,20 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         }
 
         fn initialiseFreshSpan(self: *Self, span: *Span, size_class: SizeClass, alloc_offset: usize) void {
-            span.arena = self;
-            span.alloc_ptr = @intFromPtr(span) + span_header_size + alloc_offset;
-            span.class = size_class;
-            span.free_list = null;
-            span.mutex = .{};
-            span.next = null;
-            span.prev = null;
-            span.block_count = 0;
-            span.span_count = 1;
-            span.aligned_blocks = false;
+            span.* = .{
+                .arena = self,
+                .initial_ptr = span.initial_ptr,
+                .alloc_ptr = @intFromPtr(span) + span_header_size + alloc_offset,
+                .alloc_size = span.alloc_size,
+                .class = size_class,
+                .free_list = null,
+                .mutex = .{},
+                .next = null,
+                .prev = null,
+                .block_count = 0,
+                .span_count = 1,
+                .aligned_blocks = false,
+            };
         }
 
         const getSpanFromCacheOrNew = if (config.split_large_spans_to_one)
@@ -354,14 +358,20 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         }
 
         fn initialiseFreshLargeSpan(self: *Self, span: *Span, span_count: u32, alloc_offset: usize) void {
-            span.arena = self;
-            span.alloc_ptr = @intFromPtr(span) + span_header_size + alloc_offset;
-            span.class = undefined;
-            span.free_list = null;
-            span.next = null;
-            span.prev = null;
-            span.block_count = 0;
-            span.span_count = span_count;
+            span.* = .{
+                .arena = self,
+                .initial_ptr = span.initial_ptr,
+                .alloc_ptr = @intFromPtr(span) + span_header_size + alloc_offset,
+                .alloc_size = span.alloc_size,
+                .class = undefined,
+                .free_list = null,
+                .mutex = undefined,
+                .next = null,
+                .prev = null,
+                .block_count = 0,
+                .span_count = span_count,
+                .aligned_blocks = false,
+            };
         }
 
         ///
