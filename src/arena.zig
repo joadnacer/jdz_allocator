@@ -145,7 +145,7 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         fn allocateFromCacheOrNew(self: *Self, size_class: SizeClass) ?[*]u8 {
             const span = self.getSpanFromCacheOrNew() orelse return null;
 
-            self.initialiseFreshSpan(span, size_class, zero_offset);
+            self.initialiseFreshSpan(span, size_class);
 
             const res = allocateFromFreshSpan(span);
 
@@ -164,11 +164,11 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
             return res;
         }
 
-        fn initialiseFreshSpan(self: *Self, span: *Span, size_class: SizeClass, alloc_offset: usize) void {
+        fn initialiseFreshSpan(self: *Self, span: *Span, size_class: SizeClass) void {
             span.* = .{
                 .arena = self,
                 .initial_ptr = span.initial_ptr,
-                .alloc_ptr = @intFromPtr(span) + span_header_size + alloc_offset,
+                .alloc_ptr = @intFromPtr(span) + span_header_size,
                 .alloc_size = span.alloc_size,
                 .class = size_class,
                 .free_list = null,
@@ -256,29 +256,22 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         ///
         /// Large Span Allocations
         ///
-        pub fn allocateOneSpan(self: *Self, size_class: SizeClass, alloc_offset: usize) ?[*]u8 {
+        pub fn allocateOneSpan(self: *Self, size_class: SizeClass) ?[*]u8 {
             const span = self.getSpanFromCacheOrNew() orelse return null;
 
-            self.initialiseFreshSpan(span, size_class, alloc_offset);
+            self.initialiseFreshSpan(span, size_class);
 
             return allocateFromFreshSpan(span);
         }
 
-        pub fn allocateToLargeSpan(self: *Self, span_count: u32, alloc_offset: usize) ?[*]u8 {
+        pub fn allocateToLargeSpan(self: *Self, span_count: u32) ?[*]u8 {
             if (self.getLargeSpan(span_count)) |span| {
-                self.initialiseFreshLargeSpan(span, span.span_count, alloc_offset);
+                self.initialiseFreshLargeSpan(span, span.span_count);
 
                 return allocateFromLargeSpan(span);
             }
 
-            return self.allocateFromNewLargeSpan(span_count, alloc_offset);
-        }
-
-        pub fn alignedAllocateLarge(self: *Self, alloc_offset: usize, large_aligned_size: usize) ?[*]u8 {
-            return if (large_aligned_size <= span_max)
-                self.allocateOneSpan(span_class, alloc_offset)
-            else
-                self.allocateToLargeSpan(utils.getSpanCount(large_aligned_size), alloc_offset);
+            return self.allocateFromNewLargeSpan(span_count);
         }
 
         fn getLargeSpan(self: *Self, span_count: u32) ?*Span {
@@ -338,12 +331,12 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
             return null;
         }
 
-        fn allocateFromNewLargeSpan(self: *Self, span_count: u32, alloc_offset: usize) ?[*]u8 {
+        fn allocateFromNewLargeSpan(self: *Self, span_count: u32) ?[*]u8 {
             @setCold(true);
 
             const span = self.mapSpan(MapMode.large, span_count) orelse return null;
 
-            self.initialiseFreshLargeSpan(span, span_count, alloc_offset);
+            self.initialiseFreshLargeSpan(span, span_count);
 
             return allocateFromLargeSpan(span);
         }
@@ -357,11 +350,11 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
             return res;
         }
 
-        fn initialiseFreshLargeSpan(self: *Self, span: *Span, span_count: u32, alloc_offset: usize) void {
+        fn initialiseFreshLargeSpan(self: *Self, span: *Span, span_count: u32) void {
             span.* = .{
                 .arena = self,
                 .initial_ptr = span.initial_ptr,
-                .alloc_ptr = @intFromPtr(span) + span_header_size + alloc_offset,
+                .alloc_ptr = @intFromPtr(span) + span_header_size,
                 .alloc_size = span.alloc_size,
                 .class = undefined,
                 .free_list = null,
@@ -626,5 +619,3 @@ const mod_span_size = static_config.mod_span_size;
 
 const size_class_count = static_config.size_class_count;
 const large_class_count = static_config.large_class_count;
-
-const zero_offset = static_config.zero_offset;

@@ -26,8 +26,6 @@ pub const span_alignment = log2(span_size);
 pub const span_lower_mask: usize = span_size - 1;
 pub const span_upper_mask: usize = ~span_lower_mask;
 
-pub const zero_offset = 0;
-
 pub const small_granularity = 16;
 pub const small_granularity_shift = log2(small_granularity);
 pub const small_max = 2048;

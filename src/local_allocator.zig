@@ -171,9 +171,9 @@ pub fn JdzAllocator(comptime config: JdzAllocConfig) type {
                 else if (size <= medium_max)
                     arena.allocateToSpan(utils.getMediumSizeClass(size))
                 else if (size <= span_max)
-                    arena.allocateOneSpan(span_class, zero_offset)
+                    arena.allocateOneSpan(span_class)
                 else
-                    arena.allocateToLargeSpan(utils.getSpanCount(size), zero_offset);
+                    arena.allocateToLargeSpan(utils.getSpanCount(size));
             }
 
             if (self.backing_allocator.rawAlloc(size, log2_align, ret_addr)) |buf| {
@@ -228,8 +228,6 @@ const medium_size_classes = static_config.medium_size_classes;
 const aligned_size_classes = static_config.aligned_size_classes;
 const aligned_spans_offset = static_config.aligned_spans_offset;
 const span_align_max = static_config.span_align_max;
-
-const zero_offset = static_config.zero_offset;
 
 test "small allocations - free in same order" {
     var jdz_allocator = JdzAllocator(.{}).init();
