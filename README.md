@@ -1,5 +1,5 @@
 # jdz_allocator: A Zig General Purpose Memory Allocator
-jdz_allocator is an original general purpose allocator inspired by Mattias Jansson's [rpmalloc](https://github.com/mjansson/rpmalloc). It is currently a work in progress, and segfaults on two [mimalloc-bench](https://github.com/daanx/mimalloc-bench) tests.
+jdz_allocator is an original general purpose allocator inspired by Mattias Jansson's [rpmalloc](https://github.com/mjansson/rpmalloc). It is currently a work in progress, and segfaults on one [mimalloc-bench](https://github.com/daanx/mimalloc-bench) test.
 
 In its default configuration, it uses no global or threadlocal vars, making it compatible with Zig allocator design. This allows it to function without the need for any `deinitThread` calls while still achieving reasonable multi-threaded performance.
 

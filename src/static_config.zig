@@ -9,7 +9,6 @@ pub const SizeClass = struct {
     block_size: u32,
     block_max: u32,
     class_idx: u32,
-    aligned: bool,
 };
 
 pub const span_size = 65536;
@@ -22,12 +21,6 @@ pub const span_max = span_effective_size;
 
 pub const page_size = std.mem.page_size;
 pub const page_alignment = log2(page_size);
-
-pub const aligned_spans_offset = log2(span_header_size);
-pub const aligned_class_count = log2(medium_max) - aligned_spans_offset;
-
-pub const span_align_max = std.math.pow(u16, 2, log2_int(u16, medium_max));
-// small class count + medium class count + 1 for large <= span_effective_size
 
 pub const span_alignment = log2(span_size);
 pub const span_lower_mask: usize = span_size - 1;
@@ -53,13 +46,11 @@ pub const size_class_count = small_class_count + medium_class_count + 1;
 
 pub const small_size_classes = generateSmallSizeClasses();
 pub const medium_size_classes = generateMediumSizeClasses();
-pub const aligned_size_classes = generateAlignedSizeClasses();
 
 pub const span_class = SizeClass{
     .block_max = 1,
     .block_size = span_effective_size,
     .class_idx = small_class_count + medium_class_count,
-    .aligned = false,
 };
 
 fn generateSmallSizeClasses() [small_class_count]SizeClass {
@@ -69,7 +60,6 @@ fn generateSmallSizeClasses() [small_class_count]SizeClass {
         size_classes[i].block_size = (i + 1) * small_granularity;
         size_classes[i].block_max = span_effective_size / size_classes[i].block_size;
         size_classes[i].class_idx = i;
-        size_classes[i].aligned = false;
     }
 
     mergeSizeClasses(&size_classes);
@@ -87,7 +77,6 @@ fn generateMediumSizeClasses() [medium_class_count]SizeClass {
         size_classes[i].block_size = small_max + (i + 1) * medium_granularity;
         size_classes[i].block_max = span_effective_size / size_classes[i].block_size;
         size_classes[i].class_idx = small_class_count + i;
-        size_classes[i].aligned = false;
     }
 
     mergeSizeClasses(&size_classes);
@@ -95,21 +84,6 @@ fn generateMediumSizeClasses() [medium_class_count]SizeClass {
     assert(size_classes[0].block_size == small_max + medium_granularity);
     assert(size_classes[size_classes.len - 1].block_size == medium_max);
     assert(size_classes[size_classes.len - 1].block_max > 1);
-
-    return size_classes;
-}
-
-fn generateAlignedSizeClasses() [aligned_class_count]SizeClass {
-    var size_classes: [aligned_class_count]SizeClass = undefined;
-
-    for (0..aligned_class_count) |i| {
-        const block_size = 1 << (i + aligned_spans_offset);
-
-        size_classes[i].block_size = block_size;
-        size_classes[i].block_max = (span_size - block_size) / block_size;
-        size_classes[i].class_idx = i;
-        size_classes[i].aligned = true;
-    }
 
     return size_classes;
 }

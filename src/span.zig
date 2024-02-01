@@ -11,6 +11,7 @@ const SizeClass = static_config.SizeClass;
 const assert = std.debug.assert;
 
 const span_size = static_config.span_size;
+const span_header_size = static_config.span_header_size;
 
 pub fn Span(comptime config: JdzAllocConfig) type {
     const Mutex = utils.getMutexType(config);
@@ -31,10 +32,20 @@ pub fn Span(comptime config: JdzAllocConfig) type {
         alloc_size: usize,
         span_count: u32,
         arena: *Arena,
+        aligned_blocks: bool,
 
         pub fn pushFreeList(self: *Self, buf: []u8) void {
+            const ptr = if (!self.aligned_blocks)
+                buf.ptr
+            else blk: {
+                const start_alloc_ptr = @intFromPtr(self) + span_header_size;
+                const block_offset = @intFromPtr(buf.ptr) - start_alloc_ptr;
+
+                break :blk buf.ptr - block_offset % self.class.block_size;
+            };
+
             const list = &self.free_list;
-            const block: *?usize = @ptrCast(@alignCast(buf.ptr));
+            const block: *?usize = @ptrCast(@alignCast(ptr));
             block.* = list.*;
             list.* = @intFromPtr(block);
         }

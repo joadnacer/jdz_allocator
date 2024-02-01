@@ -31,7 +31,6 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
     return struct {
         backing_allocator: std.mem.Allocator,
         spans: [size_class_count]SpanStack,
-        aligned_spans: [aligned_class_count]SpanStack,
         span_count: usize,
         cache: ArenaSpanCache,
         large_cache: [large_class_count - 1]ArenaLargeCache,
@@ -57,7 +56,6 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
             return .{
                 .backing_allocator = config.backing_allocator,
                 .spans = .{.{}} ** size_class_count,
-                .aligned_spans = .{.{}} ** aligned_class_count,
                 .span_count = 0,
                 .cache = ArenaSpanCache.init(),
                 .large_cache = large_cache,
@@ -105,23 +103,11 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         /// Small Or Medium Allocations
         ///
         pub fn allocateToSpan(self: *Self, size_class: SizeClass) ?[*]u8 {
-            var spans = &self.spans[size_class.class_idx];
-
-            const span = spans.tryRead() orelse {
+            const span = self.spans[size_class.class_idx].tryRead() orelse {
                 return self.allocateFromCacheOrNew(size_class);
             };
 
-            return allocateFromSpan(spans, span);
-        }
-
-        pub fn alignedAllocateToSpan(self: *Self, size_class: SizeClass) ?[*]u8 {
-            var spans = &self.aligned_spans[size_class.class_idx];
-
-            const span = spans.tryRead() orelse {
-                return self.alignedAllocateFromCacheOrNew(size_class);
-            };
-
-            return allocateFromSpan(spans, span);
+            return self.allocateFromSpan(span);
         }
 
         const allocateFromSpan = if (config.thread_safe)
@@ -129,14 +115,14 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         else
             allocateFromSpanLockFree;
 
-        fn allocateFromSpanLocking(spans: *SpanStack, span: *Span) [*]u8 {
+        fn allocateFromSpanLocking(self: *Self, span: *Span) [*]u8 {
             span.mutex.lock();
             defer span.mutex.unlock();
 
-            return allocateFromSpanLockFree(spans, span);
+            return self.allocateFromSpanLockFree(span);
         }
 
-        fn allocateFromSpanLockFree(spans: *SpanStack, span: *Span) [*]u8 {
+        fn allocateFromSpanLockFree(self: *Self, span: *Span) [*]u8 {
             assert(span.block_count < span.class.block_max);
 
             const res: [*]u8 = if (span.popFreeList()) |block|
@@ -144,7 +130,7 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
             else
                 allocateFromAllocPtr(span);
 
-            spans.removeFromStackIfFull(span);
+            self.spans[span.class.class_idx].removeFromStackIfFull(span);
 
             return res;
         }
@@ -164,18 +150,6 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
             const res = allocateFromFreshSpan(span);
 
             self.spans[size_class.class_idx].write(span);
-
-            return res;
-        }
-
-        fn alignedAllocateFromCacheOrNew(self: *Self, size_class: SizeClass) ?[*]u8 {
-            const span = self.getSpanFromCacheOrNew() orelse return null;
-
-            self.initialiseFreshAlignedSpan(span, size_class);
-
-            const res = allocateFromFreshSpan(span);
-
-            self.aligned_spans[size_class.class_idx].write(span);
 
             return res;
         }
@@ -200,22 +174,7 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
             span.prev = null;
             span.block_count = 0;
             span.span_count = 1;
-        }
-
-        fn initialiseFreshAlignedSpan(self: *Self, span: *Span, size_class: SizeClass) void {
-            assert(size_class.block_size > span_header_size);
-            assert(utils.isPowerOfTwo(size_class.block_size));
-
-            span.arena = self;
-            span.alloc_ptr = @intFromPtr(span) + size_class.block_size;
-            span.class = size_class;
-            span.class.block_max = @intCast((span_size - size_class.block_size) / size_class.block_size);
-            span.free_list = null;
-            span.mutex = .{};
-            span.next = null;
-            span.prev = null;
-            span.block_count = 0;
-            span.span_count = 1;
+            span.aligned_blocks = false;
         }
 
         const getSpanFromCacheOrNew = if (config.split_large_spans_to_one)
@@ -584,12 +543,7 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
             span.block_count -= 1;
 
             if (span.block_count + 1 == span.class.block_max) {
-                const spans = if (span.class.aligned)
-                    &self.aligned_spans
-                else
-                    &self.spans;
-
-                spans[span.class.class_idx].write(span);
+                self.spans[span.class.class_idx].write(span);
             }
         }
 
@@ -610,10 +564,6 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
 
         fn freeEmptySpansFromStacks(self: *Self) void {
             for (&self.spans) |*spans| {
-                self.freeStack(spans);
-            }
-
-            for (&self.aligned_spans) |*spans| {
                 self.freeStack(spans);
             }
         }
@@ -666,8 +616,5 @@ const mod_span_size = static_config.mod_span_size;
 
 const size_class_count = static_config.size_class_count;
 const large_class_count = static_config.large_class_count;
-
-const aligned_spans_offset = static_config.aligned_spans_offset;
-const aligned_class_count = static_config.aligned_class_count;
 
 const zero_offset = static_config.zero_offset;

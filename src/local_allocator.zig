@@ -105,7 +105,21 @@ pub fn JdzAllocator(comptime config: JdzAllocConfig) type {
 
             assert(alignment <= page_size);
 
-            return self.alignedAllocate(size, alignment, log2_align, ret_addr);
+            if (self.allocate(size + alignment, log2_align, ret_addr)) |block_ptr| {
+                const align_mask: usize = alignment - 1;
+                var ptr = block_ptr;
+
+                if (@intFromPtr(ptr) & align_mask != 0) {
+                    ptr = @ptrFromInt((@intFromPtr(ptr) & ~align_mask) + alignment);
+                    const span = utils.getSpan(Span, ptr);
+
+                    span.aligned_blocks = true;
+                }
+
+                return ptr;
+            }
+
+            return null;
         }
 
         fn resize(ctx: *anyopaque, buf: []u8, log2_align: u8, new_len: usize, ret_addr: usize) bool {
@@ -114,7 +128,7 @@ pub fn JdzAllocator(comptime config: JdzAllocConfig) type {
             const alignment = @as(usize, 1) << @intCast(log2_align);
             const aligned = (@intFromPtr(buf.ptr) & (alignment - 1)) == 0;
 
-            const span = utils.getSpan(Span, buf);
+            const span = utils.getSpan(Span, buf.ptr);
 
             if (buf.len <= span_max) return new_len <= span.class.block_size and aligned;
             if (buf.len <= large_max) return new_len <= span.alloc_size - (span.alloc_ptr - span.initial_ptr) and aligned;
@@ -130,7 +144,7 @@ pub fn JdzAllocator(comptime config: JdzAllocConfig) type {
 
             const alignment = @as(usize, 1) << @intCast(log2_align);
             const size = @max(alignment, buf.len);
-            const span = utils.getSpan(Span, buf);
+            const span = utils.getSpan(Span, buf.ptr);
 
             if (size <= medium_max) {
                 span.arena.freeSmallOrMedium(span, buf);
@@ -171,35 +185,11 @@ pub fn JdzAllocator(comptime config: JdzAllocConfig) type {
             return null;
         }
 
-        fn alignedAllocate(self: *Self, size: usize, alignment: usize, log2_align: u8, ret_addr: usize) ?[*]u8 {
-            assert(alignment <= span_align_max);
-
-            const align_size = utils.roundUpToPowerOfTwo(size);
-            const alloc_offset = alignment - span_header_size;
-            const large_aligned_size = size + alloc_offset;
-
-            if (large_aligned_size <= large_max) {
-                const arena = self.arena_handler.getArena() orelse return null;
-                defer arena.release();
-
-                return if (align_size <= medium_max)
-                    arena.alignedAllocateToSpan(utils.getAlignedSizeClass(log2_align))
-                else
-                    arena.alignedAllocateLarge(alloc_offset, large_aligned_size);
-            }
-
-            _ = self.huge_count.fetchAdd(1, .Monotonic);
-            return self.backing_allocator.rawAlloc(size, log2_align, ret_addr);
-        }
-
         /// for mimalloc-bench, does not work for huge allocs
         pub fn usableSize(self: *Self, ptr: *anyopaque) usize {
             _ = self;
 
-            const byte_ptr: [*]u8 = @ptrCast(ptr);
-            const slice = byte_ptr[0..1];
-
-            const span = utils.getSpan(Span, slice);
+            const span = utils.getSpan(Span, ptr);
 
             if (span.span_count == 1) {
                 return span.class.block_size;

@@ -49,12 +49,6 @@ pub inline fn getMediumSizeClass(len: usize) SizeClass {
     return medium_size_classes[getMediumSizeIdx(len)];
 }
 
-pub inline fn getAlignedSizeClass(log2_align: u8) SizeClass {
-    assert(log2_align <= page_alignment);
-
-    return aligned_size_classes[log2_align - aligned_spans_offset];
-}
-
 pub inline fn getSmallSizeIdx(len: usize) usize {
     return (len - 1) >> small_granularity_shift;
 }
@@ -63,8 +57,8 @@ pub inline fn getMediumSizeIdx(len: usize) usize {
     return (len - small_max - 1) >> medium_granularity_shift;
 }
 
-pub inline fn getSpan(comptime T: type, buf: []u8) *T {
-    return @ptrFromInt(@intFromPtr(buf.ptr) & span_upper_mask);
+pub inline fn getSpan(comptime T: type, ptr: *anyopaque) *T {
+    return @ptrFromInt(@intFromPtr(ptr) & span_upper_mask);
 }
 
 pub inline fn isPowerOfTwo(n: u64) bool {
@@ -103,6 +97,3 @@ const page_alignment = static_config.page_alignment;
 
 const small_size_classes = static_config.small_size_classes;
 const medium_size_classes = static_config.medium_size_classes;
-
-const aligned_size_classes = static_config.aligned_size_classes;
-const aligned_spans_offset = static_config.aligned_spans_offset;
