@@ -2,7 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const jdz = @import("jdz_allocator.zig");
-const handler = @import("arena_handler.zig");
+const shared_arena_handler = @import("shared_arena_handler.zig");
 const span_arena = @import("arena.zig");
 const span_file = @import("span.zig");
 const static_config = @import("static_config.zig");
@@ -18,7 +18,7 @@ const assert = std.debug.assert;
 pub fn JdzAllocator(comptime config: JdzAllocConfig) type {
     const Span = span_file.Span(config);
 
-    const ArenaHandler = handler.ArenaHandler(config);
+    const SharedArenaHandler = shared_arena_handler.SharedArenaHandler(config);
 
     assert(config.span_alloc_count >= 1);
 
@@ -47,7 +47,7 @@ pub fn JdzAllocator(comptime config: JdzAllocConfig) type {
 
     return struct {
         backing_allocator: std.mem.Allocator,
-        arena_handler: ArenaHandler,
+        arena_handler: SharedArenaHandler,
         huge_count: Atomic(usize),
 
         const Self = @This();
@@ -55,7 +55,7 @@ pub fn JdzAllocator(comptime config: JdzAllocConfig) type {
         pub fn init() Self {
             return .{
                 .backing_allocator = config.backing_allocator,
-                .arena_handler = ArenaHandler.init(),
+                .arena_handler = SharedArenaHandler.init(),
                 .huge_count = Atomic(usize).init(0),
             };
         }

@@ -1,10 +1,10 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const local_allocator = @import("local_allocator.zig");
+const shared_allocator = @import("shared_allocator.zig");
 const global_allocator = @import("global_allocator.zig");
 
-pub const JdzAllocator = local_allocator.JdzAllocator;
+pub const JdzAllocator = shared_allocator.JdzAllocator;
 pub const JdzGlobalAllocator = global_allocator.JdzGlobalAllocator;
 
 pub const JdzAllocConfig = struct {

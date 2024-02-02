@@ -28,15 +28,15 @@ pub fn build(b: *std.Build) !void {
 
     b.installArtifact(libjdzglobal);
 
-    const libjdzlocal = b.addSharedLibrary(.{
-        .name = "jdzlocal",
-        .root_source_file = .{ .path = "src/libjdzlocal.zig" },
+    const libjdzshared = b.addSharedLibrary(.{
+        .name = "jdzshared",
+        .root_source_file = .{ .path = "src/libjdzshared.zig" },
         .target = target,
         .optimize = optimize,
         .link_libc = true,
     });
 
-    b.installArtifact(libjdzlocal);
+    b.installArtifact(libjdzshared);
 
     const tests = b.addTest(.{
         .root_source_file = .{ .path = "src/jdz_allocator.zig" },

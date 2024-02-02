@@ -1,10 +1,10 @@
 const std = @import("std");
 const assert = std.assert;
-const local_allocator = @import("local_allocator.zig");
+const shared_allocator = @import("shared_allocator.zig");
 
 const log = std.log.scoped(.jdz_allocator);
 
-var allocator_instance = local_allocator.JdzAllocator(.{}).init();
+var allocator_instance = shared_allocator.JdzAllocator(.{}).init();
 var allocator = allocator_instance.allocator();
 
 ///
