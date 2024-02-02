@@ -25,7 +25,7 @@ Benchmarks can be run as follows: `zig run -O ReleaseFast src/bench.zig -lc -- [
 src/bench.zig in this repo does not contain rpmalloc or zimalloc - more complete benchmarks will eventually be posted to a parallel repository.
 
 ### Performance
-![image](https://i.imgur.com/54mAujT.png)
+![image](https://i.imgur.com/X93jgs2.png)
 ### Memory Usage
 zimalloc was excluded from the memory usage charts due to too high memory usage (at 16 threads, RSS was ~1.5M bytes and VSZ was ~2M).
 
