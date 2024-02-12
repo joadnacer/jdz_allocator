@@ -1,23 +1,25 @@
 const std = @import("std");
 const jdz = @import("jdz_allocator.zig");
 
-const mixed_rounds = 10_000_000;
+const mixed_rounds = 100_000;
 const mixed_min = 1;
 const mixed_max = 80000;
 
-const small_rounds = 10_000_000;
+const small_rounds = 100_000;
 const small_min = 1;
 const small_max = 2048;
 
-const medium_rounds = 10_000_000;
+const medium_rounds = 100_000;
 const medium_min = 2049;
 const medium_max = 32512;
 
-const big_rounds = 10_000_000;
+const big_rounds = 100_000;
 const big_min = 32513;
 const big_max = 4194176;
 
-const BUFFER_CAPACITY = 256;
+const buffer_capacity = @max(mixed_rounds, @max(small_rounds, @max(medium_rounds, big_rounds)));
+
+var slots = std.BoundedArray([]u8, buffer_capacity){};
 
 pub fn main() !void {
     const args = try std.process.argsAlloc(std.heap.page_allocator);
@@ -188,7 +190,6 @@ fn gpa_big(num_threads: u32) !void {
 /// Bench Methods
 ///
 fn threadAllocWorker(min: usize, max: usize, allocator: std.mem.Allocator, max_rounds: usize) !void {
-    var slots = std.BoundedArray([]u8, BUFFER_CAPACITY){};
     var rounds: usize = max_rounds;
 
     var random_source = std.rand.DefaultPrng.init(1337);
@@ -197,29 +198,19 @@ fn threadAllocWorker(min: usize, max: usize, allocator: std.mem.Allocator, max_r
     while (rounds > 0) {
         rounds -= 1;
 
-        const free_chance = @as(f32, @floatFromInt(slots.len)) / @as(f32, @floatFromInt(slots.buffer.len - 1)); // more elements => more frees
-        const alloc_chance = 1.0 - free_chance; // more elements => less allocs
         const alloc_amount = rng.intRangeAtMost(usize, min, max);
 
-        if (slots.len > 0) {
-            if (rng.float(f32) <= free_chance) {
-                const index = rng.intRangeLessThan(usize, 0, slots.len);
-                const ptr = slots.swapRemove(index);
-                allocator.free(ptr);
-            }
-        }
-
-        if (slots.len < slots.capacity()) {
-            if (rng.float(f32) <= alloc_chance) {
-                const item = try allocator.alloc(u8, alloc_amount);
-                slots.appendAssumeCapacity(item);
-            }
+        if (slots.len < max_rounds) {
+            const item = try allocator.alloc(u8, alloc_amount);
+            slots.appendAssumeCapacity(item);
         }
     }
 
     for (slots.slice()) |ptr| {
         allocator.free(ptr);
     }
+
+    try slots.resize(0);
 }
 
 fn runPerfTestAlloc(tag: []const u8, min: usize, max: usize, allocator: std.mem.Allocator, max_rounds: usize, num_threads: u32) !void {
