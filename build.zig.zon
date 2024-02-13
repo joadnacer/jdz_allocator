@@ -1,5 +1,5 @@
 .{
     .name = "jdz_allocator",
     .version = "0.0.1",
-    .depdendencies = .{},
+    .dependencies = .{},
 }
