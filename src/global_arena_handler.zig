@@ -69,8 +69,6 @@ pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
         }
 
         inline fn getArenaFromList(self: *Self) ?*Arena {
-            @setCold(true);
-
             self.mutex.lock();
             defer self.mutex.unlock();
 
@@ -86,8 +84,6 @@ pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
         }
 
         fn createArena() ?*Arena {
-            @setCold(true);
-
             const new_arena = config.backing_allocator.create(Arena) catch return null;
 
             new_arena.* = Arena.init(.unlocked, std.Thread.getCurrentId());
@@ -98,8 +94,6 @@ pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
         }
 
         fn addArenaToList(self: *Self, new_arena: *Arena) void {
-            @setCold(true);
-
             self.mutex.lock();
             defer self.mutex.unlock();
 

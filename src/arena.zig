@@ -202,8 +202,6 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         }
 
         fn getEmptySpansFromStacks(self: *Self) ?*Span {
-            @setCold(true);
-
             var ret_span: ?*Span = null;
 
             for (&self.spans) |*spans| {
@@ -226,7 +224,6 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         }
 
         fn getSpansFromLargeCache(self: *Self) ?*Span {
-            @setCold(true);
             var span_count: usize = large_class_count;
 
             while (span_count >= 2) : (span_count -= 1) {
@@ -239,8 +236,6 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         }
 
         fn getSpansFromLargeSpan(self: *Self, span: *Span) *Span {
-            @setCold(true);
-
             const to_cache = span.splitFirstSpanReturnRemaining();
 
             if (self.cache.tryWriteLarge(to_cache)) |remaining| {
@@ -311,8 +306,6 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         }
 
         fn splitLargerCachedSpan(self: *Self, desired_count: u32, from_count: u32) ?*Span {
-            @setCold(true);
-
             for (from_count..large_class_count + 1) |count| {
                 const cached = self.large_cache[count - 2].tryRead() orelse continue;
 
@@ -332,8 +325,6 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         }
 
         fn allocateFromNewLargeSpan(self: *Self, span_count: u32) ?[*]u8 {
-            @setCold(true);
-
             const span = self.mapSpan(MapMode.large, span_count) orelse return null;
 
             self.initialiseFreshLargeSpan(span, span_count);
@@ -371,8 +362,6 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         /// Span Mapping
         ///
         fn mapSpan(self: *Self, comptime map_mode: MapMode, span_count: u32) ?*Span {
-            @setCold(true);
-
             var map_count = getMapCount(span_count);
 
             // need padding to guarantee allocating enough spans
@@ -405,8 +394,6 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         }
 
         fn mapMultipleSpans(self: *Self, span: *Span) *Span {
-            @setCold(true);
-
             if (span.span_count > 1) {
                 const remaining = span.splitFirstSpanReturnRemaining();
 
@@ -422,8 +409,6 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         /// Arena Map Cache
         ///
         fn getSpansFromMapCache(self: *Self) ?*Span {
-            @setCold(true);
-
             const map_cache_min = 2;
 
             if (self.getFromMapCache(map_cache_min)) |mapped_span| {
@@ -434,8 +419,6 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         }
 
         fn getSpansCacheRemaining(self: *Self, span_alloc_ptr: usize, alloc_size: usize, map_count: u32, desired_span_count: u32) *Span {
-            @setCold(true);
-
             const span = instantiateMappedSpan(span_alloc_ptr, alloc_size, map_count);
 
             if (span.span_count > desired_span_count) {
@@ -464,8 +447,6 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         }
 
         fn getFromMapCache(self: *Self, span_count: u32) ?*Span {
-            @setCold(true);
-
             for (span_count..self.map_cache.len) |count| {
                 const cached_span = self.getCachedMapped(count);
 
@@ -493,8 +474,6 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         }
 
         fn cacheFromMapping(self: *Self, span: *Span) void {
-            @setCold(true);
-
             const map_cache_max = self.map_cache.len - 1;
 
             while (span.span_count > map_cache_max) {
@@ -507,8 +486,6 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         }
 
         fn cacheMapped(self: *Self, span: *Span) void {
-            @setCold(true);
-
             assert(span.span_count < self.map_cache.len);
 
             if (span.span_count == 1) {
