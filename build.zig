@@ -48,4 +48,32 @@ pub fn build(b: *std.Build) !void {
 
     const test_step = b.step("test", "Run library tests");
     test_step.dependOn(&run_tests.step);
+
+    const bench_exe = b.addExecutable(.{
+        .name = "bench",
+        .root_source_file = .{ .path = "src/bench.zig" },
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+
+    const grow_shrink_bench_exe = b.addExecutable(.{
+        .name = "bench",
+        .root_source_file = .{ .path = "src/grow_shrink_bench.zig" },
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+
+    b.installArtifact(bench_exe);
+    b.installArtifact(grow_shrink_bench_exe);
+
+    const run_bench_exe = b.addRunArtifact(bench_exe);
+    const run_grow_shrink_bench_exe = b.addRunArtifact(grow_shrink_bench_exe);
+
+    const run_bench_step = b.step("run-bench", "Run src/bench.zig");
+    run_bench_step.dependOn(&run_bench_exe.step);
+
+    const run_grow_shrink_bench_step = b.step("run-grow-shrink-bench", "Run src/grow_shrink_bench.zig");
+    run_grow_shrink_bench_step.dependOn(&run_grow_shrink_bench_exe.step);
 }
