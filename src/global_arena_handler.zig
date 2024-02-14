@@ -55,17 +55,9 @@ pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
         }
 
         pub fn getArena(self: *Self) ?*Arena {
-            return getThreadLocalArena() orelse
+            return thread_arena orelse
                 self.getArenaFromList() orelse
                 createArena();
-        }
-
-        inline fn getThreadLocalArena() ?*Arena {
-            if (thread_arena) |arena| {
-                return arena;
-            }
-
-            return null;
         }
 
         inline fn getArenaFromList(self: *Self) ?*Arena {
