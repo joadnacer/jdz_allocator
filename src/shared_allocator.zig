@@ -162,21 +162,27 @@ pub fn JdzAllocator(comptime config: JdzAllocConfig) type {
         /// Allocation
         ///
         fn allocate(self: *Self, size: usize, log2_align: u8, ret_addr: usize) ?[*]u8 {
-            if (size <= large_max) {
+            if (size <= small_max) {
                 const arena = self.arena_handler.getArena() orelse return null;
                 defer arena.release();
 
-                return if (size <= small_max)
-                    arena.allocateToSpan(utils.getSmallSizeClass(size))
-                else if (size <= medium_max)
-                    arena.allocateToSpan(utils.getMediumSizeClass(size))
-                else if (size <= span_max)
-                    arena.allocateOneSpan(span_class)
-                else
-                    arena.allocateToLargeSpan(utils.getSpanCount(size));
-            }
+                return arena.allocateToSpan(utils.getSmallSizeClass(size));
+            } else if (size <= medium_max) {
+                const arena = self.arena_handler.getArena() orelse return null;
+                defer arena.release();
 
-            if (self.backing_allocator.rawAlloc(size, log2_align, ret_addr)) |buf| {
+                return arena.allocateToSpan(utils.getMediumSizeClass(size));
+            } else if (size <= span_max) {
+                const arena = self.arena_handler.getArena() orelse return null;
+                defer arena.release();
+
+                return arena.allocateOneSpan(span_class);
+            } else if (size <= large_max) {
+                const arena = self.arena_handler.getArena() orelse return null;
+                defer arena.release();
+
+                return arena.allocateToLargeSpan(utils.getSpanCount(size));
+            } else if (self.backing_allocator.rawAlloc(size, log2_align, ret_addr)) |buf| {
                 _ = self.huge_count.fetchAdd(1, .Monotonic);
 
                 return buf;

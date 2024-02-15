@@ -171,19 +171,21 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
         /// Allocation
         ///
         fn allocate(size: usize, log2_align: u8, ret_addr: usize) ?[*]u8 {
-            if (size <= large_max) {
-                const arena = arena_handler.getArena() orelse return null;
+            const arena = arena_handler.getArena() orelse return null;
 
-                return if (size <= small_max)
-                    arena.allocateToSpan(utils.getSmallSizeClass(size))
-                else if (size <= medium_max)
-                    arena.allocateToSpan(utils.getMediumSizeClass(size))
-                else if (size <= span_max)
-                    arena.allocateOneSpan(span_class)
-                else
-                    arena.allocateToLargeSpan(utils.getSpanCount(size));
-            }
+            return if (size <= small_max)
+                arena.allocateToSpan(utils.getSmallSizeClass(size))
+            else if (size <= medium_max)
+                arena.allocateToSpan(utils.getMediumSizeClass(size))
+            else if (size <= span_max)
+                arena.allocateOneSpan(span_class)
+            else if (size <= large_max)
+                arena.allocateToLargeSpan(utils.getSpanCount(size))
+            else
+                allocateHuge(size, log2_align, ret_addr);
+        }
 
+        inline fn allocateHuge(size: usize, log2_align: u8, ret_addr: usize) ?[*]u8 {
             if (backing_allocator.rawAlloc(size, log2_align, ret_addr)) |buf| {
                 _ = huge_count.fetchAdd(1, .Monotonic);
 
