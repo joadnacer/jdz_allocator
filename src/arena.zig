@@ -102,37 +102,36 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         ///
         /// Small Or Medium Allocations
         ///
-        pub fn allocateToSpan(self: *Self, size_class: SizeClass) ?[*]u8 {
-            const span = self.spans[size_class.class_idx].tryRead() orelse {
-                return self.allocateFromCacheOrNew(size_class);
-            };
-
-            return self.allocateFromSpan(span);
-        }
-
-        const allocateFromSpan = if (config.thread_safe)
-            allocateFromSpanLocking
+        pub const allocateToSpan = if (config.thread_safe)
+            allocateToSpanLocking
         else
-            allocateFromSpanLockFree;
+            allocateToSpanLockFree;
 
-        fn allocateFromSpanLocking(self: *Self, span: *Span) [*]u8 {
-            span.mutex.lock();
-            defer span.mutex.unlock();
+        fn allocateToSpanLockFree(self: *Self, size_class: SizeClass) ?[*]u8 {
+            if (self.spans[size_class.class_idx].tryRead()) |span| {
+                assert(span.block_count < span.class.block_max);
 
-            return self.allocateFromSpanLockFree(span);
+                defer self.spans[span.class.class_idx].removeFromStackIfFull(span);
+
+                return span.popFreeList() orelse allocateFromAllocPtr(span);
+            }
+
+            return self.allocateFromCacheOrNew(size_class);
         }
 
-        fn allocateFromSpanLockFree(self: *Self, span: *Span) [*]u8 {
-            assert(span.block_count < span.class.block_max);
+        fn allocateToSpanLocking(self: *Self, size_class: SizeClass) ?[*]u8 {
+            if (self.spans[size_class.class_idx].tryRead()) |span| {
+                assert(span.block_count < span.class.block_max);
 
-            const res: [*]u8 = if (span.popFreeList()) |block|
-                @ptrFromInt(block)
-            else
-                allocateFromAllocPtr(span);
+                span.mutex.lock();
+                defer span.mutex.unlock();
 
-            self.spans[span.class.class_idx].removeFromStackIfFull(span);
+                defer self.spans[span.class.class_idx].removeFromStackIfFull(span);
 
-            return res;
+                return span.allocate();
+            }
+
+            return self.allocateFromCacheOrNew(size_class);
         }
 
         fn allocateFromAllocPtr(span: *Span) [*]u8 {

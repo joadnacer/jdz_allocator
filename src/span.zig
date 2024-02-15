@@ -12,6 +12,7 @@ const assert = std.debug.assert;
 
 const span_size = static_config.span_size;
 const span_header_size = static_config.span_header_size;
+const page_size = static_config.page_size;
 
 pub fn Span(comptime config: JdzAllocConfig) type {
     const Mutex = utils.getMutexType(config);
@@ -50,16 +51,21 @@ pub fn Span(comptime config: JdzAllocConfig) type {
             list.* = @intFromPtr(block);
         }
 
-        pub fn popFreeList(self: *Self) ?usize {
-            const opt_block = self.free_list;
-
-            if (opt_block) |block| {
+        pub fn allocate(self: *Self) [*]u8 {
+            if (self.free_list) |block| {
                 self.free_list = @as(*?usize, @ptrFromInt(block)).*;
 
-                return block;
+                return @ptrFromInt(block);
             }
 
-            return null;
+            return self.allocateFromAllocPtr();
+        }
+
+        inline fn allocateFromAllocPtr(self: *Self) [*]u8 {
+            const res: [*]u8 = @ptrFromInt(self.alloc_ptr);
+            self.alloc_ptr += self.class.block_size;
+
+            return res;
         }
 
         pub fn splitLastSpans(self: *Self, span_count: u32) *Self {
