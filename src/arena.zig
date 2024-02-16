@@ -113,7 +113,7 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
 
                 defer self.spans[span.class.class_idx].removeFromStackIfFull(span);
 
-                return span.popFreeList() orelse allocateFromAllocPtr(span);
+                return span.allocate();
             }
 
             return self.allocateFromCacheOrNew(size_class);
@@ -132,13 +132,6 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
             }
 
             return self.allocateFromCacheOrNew(size_class);
-        }
-
-        fn allocateFromAllocPtr(span: *Span) [*]u8 {
-            const res: [*]u8 = @ptrFromInt(span.alloc_ptr);
-            span.alloc_ptr += span.class.block_size;
-
-            return res;
         }
 
         fn allocateFromCacheOrNew(self: *Self, size_class: SizeClass) ?[*]u8 {

@@ -36,19 +36,26 @@ pub fn Span(comptime config: JdzAllocConfig) type {
         aligned_blocks: bool,
 
         pub fn pushFreeList(self: *Self, buf: []u8) void {
-            const ptr = if (!self.aligned_blocks)
-                buf.ptr
-            else blk: {
+            const ptr = self.getBlockPtr(buf);
+
+            self.pushFreeListElement(ptr);
+        }
+
+        inline fn getBlockPtr(self: *Self, buf: []u8) [*]u8 {
+            if (!self.aligned_blocks) {
+                return buf.ptr;
+            } else {
                 const start_alloc_ptr = @intFromPtr(self) + span_header_size;
                 const block_offset = @intFromPtr(buf.ptr) - start_alloc_ptr;
 
-                break :blk buf.ptr - block_offset % self.class.block_size;
-            };
+                return buf.ptr - block_offset % self.class.block_size;
+            }
+        }
 
-            const list = &self.free_list;
+        inline fn pushFreeListElement(self: *Self, ptr: [*]u8) void {
             const block: *?usize = @ptrCast(@alignCast(ptr));
-            block.* = list.*;
-            list.* = @intFromPtr(block);
+            block.* = self.free_list;
+            self.free_list = @intFromPtr(block);
         }
 
         pub fn allocate(self: *Self) [*]u8 {
