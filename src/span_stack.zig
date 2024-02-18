@@ -22,10 +22,23 @@ pub fn SpanStack(comptime config: JdzAllocConfig) type {
             self.mutex.lock();
             defer self.mutex.unlock();
 
-            assert(self.head != span);
+            assertNotInStack(span);
+            span.stack = self;
+            span.next = self.head;
+            self.head = span;
 
-            resetSpan(span);
+            if (span.next) |next| next.prev = span;
+        }
 
+        pub fn writeIfNotIn(self: *Self, span: *Span) void {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+
+            if (span.stack == self) return;
+
+            assertNotInStack(span);
+
+            span.stack = self;
             span.next = self.head;
             self.head = span;
 
@@ -46,12 +59,18 @@ pub fn SpanStack(comptime config: JdzAllocConfig) type {
             resetSpan(span);
         }
 
-        pub fn removeFromStackIfFull(self: *Self, span: *Span) void {
-            span.block_count += 1;
+        pub fn removeHead(self: *Self) void {
+            assert(self.head != null);
 
-            if (span.block_count == span.class.block_max) {
-                self.remove(span);
-            }
+            self.mutex.lock();
+            defer self.mutex.unlock();
+
+            const head = self.head.?;
+            self.head = head.next;
+
+            if (self.head) |new_head| new_head.prev = null;
+
+            resetSpan(head);
         }
 
         pub fn getEmptySpans(self: *Self) ?*Span {
@@ -101,9 +120,16 @@ pub fn SpanStack(comptime config: JdzAllocConfig) type {
             return next;
         }
 
-        fn resetSpan(span: *Span) void {
+        inline fn resetSpan(span: *Span) void {
             span.next = null;
             span.prev = null;
+            span.stack = null;
+        }
+
+        inline fn assertNotInStack(span: *Span) void {
+            assert(span.next == null);
+            assert(span.prev == null);
+            assert(span.stack == null);
         }
     };
 }

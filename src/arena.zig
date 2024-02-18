@@ -111,22 +111,51 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
             if (self.spans[size_class.class_idx].tryRead()) |span| {
                 assert(span.block_count < span.class.block_max);
 
-                defer self.spans[span.class.class_idx].removeFromStackIfFull(span);
+                if (span.free_list) |block| {
+                    span.free_list = @as(*?usize, @ptrFromInt(block)).*;
 
-                return span.allocate();
+                    span.block_count += 1;
+
+                    return @ptrFromInt(block);
+                }
+
+                if (span.block_count != span.class.block_max) {
+                    return span.allocateFromAllocPtr();
+                } else {
+                    self.spans[size_class.class_idx].removeHead(span);
+                }
             }
 
-            return self.allocateFromCacheOrNew(size_class);
+            return self.allocateGeneric(size_class);
         }
 
         fn allocateToSpanLocking(self: *Self, size_class: SizeClass) ?[*]u8 {
             if (self.spans[size_class.class_idx].tryRead()) |span| {
-                assert(span.block_count < span.class.block_max);
-
                 span.mutex.lock();
                 defer span.mutex.unlock();
 
-                defer self.spans[span.class.class_idx].removeFromStackIfFull(span);
+                if (span.free_list) |block| {
+                    span.free_list = @as(*?usize, @ptrFromInt(block)).*;
+
+                    span.block_count += 1;
+
+                    return @ptrFromInt(block);
+                }
+            }
+
+            return self.allocateGeneric(size_class);
+        }
+
+        fn allocateGeneric(self: *Self, size_class: SizeClass) ?[*]u8 {
+            while (self.spans[size_class.class_idx].tryRead()) |span| {
+                span.mutex.lock();
+                defer span.mutex.unlock();
+
+                if (span.block_count == span.class.block_max) {
+                    self.spans[size_class.class_idx].removeHead();
+
+                    continue;
+                }
 
                 return span.allocate();
             }
@@ -159,6 +188,7 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         fn initialiseFreshSpan(self: *Self, span: *Span, size_class: SizeClass) void {
             span.* = .{
                 .arena = self,
+                .stack = null,
                 .initial_ptr = span.initial_ptr,
                 .alloc_ptr = @intFromPtr(span) + span_header_size,
                 .alloc_size = span.alloc_size,
@@ -336,6 +366,7 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         fn initialiseFreshLargeSpan(self: *Self, span: *Span, span_count: u32) void {
             span.* = .{
                 .arena = self,
+                .stack = null,
                 .initial_ptr = span.initial_ptr,
                 .alloc_ptr = @intFromPtr(span) + span_header_size,
                 .alloc_size = span.alloc_size,
@@ -515,7 +546,7 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
             span.block_count -= 1;
 
             if (span.block_count + 1 == span.class.block_max) {
-                self.spans[span.class.class_idx].write(span);
+                self.spans[span.class.class_idx].writeIfNotIn(span);
             }
         }
 

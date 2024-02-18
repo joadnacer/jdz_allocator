@@ -2,6 +2,7 @@ const std = @import("std");
 
 const jdz_allocator = @import("jdz_allocator.zig");
 const arena = @import("arena.zig");
+const span_stack = @import("span_stack.zig");
 const static_config = @import("static_config.zig");
 const utils = @import("utils.zig");
 
@@ -22,6 +23,10 @@ pub fn Span(comptime config: JdzAllocConfig) type {
 
         const Arena = arena.Arena(config);
 
+        const SpanStack = span_stack.SpanStack(config);
+
+        arena: *Arena,
+        stack: ?*SpanStack,
         free_list: ?usize,
         mutex: Mutex,
         next: ?*Self,
@@ -32,7 +37,6 @@ pub fn Span(comptime config: JdzAllocConfig) type {
         initial_ptr: usize,
         alloc_size: usize,
         span_count: u32,
-        arena: *Arena,
         aligned_blocks: bool,
 
         pub fn pushFreeList(self: *Self, buf: []u8) void {
@@ -59,6 +63,10 @@ pub fn Span(comptime config: JdzAllocConfig) type {
         }
 
         pub fn allocate(self: *Self) [*]u8 {
+            assert(self.block_count < self.class.block_max);
+
+            self.block_count += 1;
+
             if (self.free_list) |block| {
                 self.free_list = @as(*?usize, @ptrFromInt(block)).*;
 
@@ -68,7 +76,9 @@ pub fn Span(comptime config: JdzAllocConfig) type {
             return self.allocateFromAllocPtr();
         }
 
-        inline fn allocateFromAllocPtr(self: *Self) [*]u8 {
+        pub fn allocateFromAllocPtr(self: *Self) [*]u8 {
+            assert(self.alloc_ptr <= @intFromPtr(self) + span_size - self.class.block_size);
+
             const res: [*]u8 = @ptrFromInt(self.alloc_ptr);
             self.alloc_ptr += self.class.block_size;
 
