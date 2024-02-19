@@ -109,20 +109,12 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
 
         fn allocateToSpanLockFree(self: *Self, size_class: SizeClass) ?[*]u8 {
             if (self.spans[size_class.class_idx].tryRead()) |span| {
-                assert(span.block_count < span.class.block_max);
-
                 if (span.free_list) |block| {
                     span.free_list = @as(*?usize, @ptrFromInt(block)).*;
 
                     span.block_count += 1;
 
                     return @ptrFromInt(block);
-                }
-
-                if (span.block_count != span.class.block_max) {
-                    return span.allocateFromAllocPtr();
-                } else {
-                    self.spans[size_class.class_idx].removeHead(span);
                 }
             }
 
