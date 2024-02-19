@@ -559,6 +559,10 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             for (&self.spans) |*spans| {
                 self.freeStack(spans);
             }
+
+            for (&self.full_spans) |*full_spans| {
+                self.freeStack(full_spans);
+            }
         }
 
         fn freeStack(self: *Self, spans: *SpanStack) void {
