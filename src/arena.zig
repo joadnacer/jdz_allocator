@@ -15,7 +15,7 @@ const assert = std.debug.assert;
 
 const cache_line = std.atomic.cache_line;
 
-pub fn Arena(comptime config: JdzAllocConfig) type {
+pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) type {
     const Span = span_file.Span(config);
 
     const SpanStack = span_stack.SpanStack(config);
@@ -102,36 +102,10 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         ///
         /// Small Or Medium Allocations
         ///
-        pub const allocateToSpan = if (config.thread_safe)
-            allocateToSpanLocking
-        else
-            allocateToSpanLockFree;
-
-        fn allocateToSpanLockFree(self: *Self, size_class: SizeClass) ?[*]u8 {
+        pub fn allocateToSpan(self: *Self, size_class: SizeClass) ?[*]u8 {
             if (self.spans[size_class.class_idx].tryRead()) |span| {
-                if (span.free_list) |block| {
-                    span.free_list = @as(*?usize, @ptrFromInt(block)).*;
-
-                    span.block_count += 1;
-
-                    return @ptrFromInt(block);
-                }
-            }
-
-            return self.allocateGeneric(size_class);
-        }
-
-        fn allocateToSpanLocking(self: *Self, size_class: SizeClass) ?[*]u8 {
-            if (self.spans[size_class.class_idx].tryRead()) |span| {
-                span.mutex.lock();
-                defer span.mutex.unlock();
-
-                if (span.free_list) |block| {
-                    span.free_list = @as(*?usize, @ptrFromInt(block)).*;
-
-                    span.block_count += 1;
-
-                    return @ptrFromInt(block);
+                if (span.free_list != free_list_null) {
+                    return span.popFreeListElement();
                 }
             }
 
@@ -140,9 +114,6 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
 
         fn allocateGeneric(self: *Self, size_class: SizeClass) ?[*]u8 {
             while (self.spans[size_class.class_idx].tryRead()) |span| {
-                span.mutex.lock();
-                defer span.mutex.unlock();
-
                 if (span.block_count == span.class.block_max) {
                     self.spans[size_class.class_idx].removeHead();
 
@@ -185,8 +156,8 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
                 .alloc_ptr = @intFromPtr(span) + span_header_size,
                 .alloc_size = span.alloc_size,
                 .class = size_class,
-                .free_list = null,
-                .mutex = .{},
+                .free_list = free_list_null,
+                .deferred_free_list = free_list_null,
                 .next = null,
                 .prev = null,
                 .block_count = 0,
@@ -363,8 +334,8 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
                 .alloc_ptr = @intFromPtr(span) + span_header_size,
                 .alloc_size = span.alloc_size,
                 .class = undefined,
-                .free_list = null,
-                .mutex = undefined,
+                .free_list = free_list_null,
+                .deferred_free_list = free_list_null,
                 .next = null,
                 .prev = null,
                 .block_count = 0,
@@ -520,25 +491,36 @@ pub fn Arena(comptime config: JdzAllocConfig) type {
         ///
         /// Single Span Free/Cache
         ///
-        pub const freeSmallOrMedium = if (config.thread_safe)
-            freeSmallOrMediumLocking
-        else
-            freeSmallOrMediumLockFree;
+        pub fn freeSmallOrMedium(self: *Self, span: *Span, buf: []u8) void {
+            self.pushFreeListElement(span, buf);
 
-        fn freeSmallOrMediumLocking(self: *Self, span: *Span, buf: []u8) void {
-            span.mutex.lock();
-            defer span.mutex.unlock();
+            const block_count = @atomicRmw(u16, &span.block_count, .Sub, 1, .Monotonic);
 
-            self.freeSmallOrMediumLockFree(span, buf);
+            if (block_count == span.class.block_max) {
+                self.spans[span.class.class_idx].writeIfNotIn(span);
+            }
         }
 
-        fn freeSmallOrMediumLockFree(self: *Self, span: *Span, buf: []u8) void {
-            span.pushFreeList(buf);
+        const pushFreeListElement = if (is_threadlocal)
+            pushFreeListElementThreadLocal
+        else
+            pushFreeListElementShared;
 
-            span.block_count -= 1;
+        fn pushFreeListElementThreadLocal(self: *Self, span: *Span, buf: []u8) void {
+            if (self.thread_id == std.Thread.getCurrentId()) {
+                span.pushFreeList(buf);
+            } else {
+                span.pushDeferredFreeList(buf);
+            }
+        }
 
-            if (span.block_count + 1 == span.class.block_max) {
-                self.spans[span.class.class_idx].writeIfNotIn(span);
+        fn pushFreeListElementShared(self: *Self, span: *Span, buf: []u8) void {
+            if (self.thread_id == std.Thread.getCurrentId() and self.tryAcquire()) {
+                defer self.release();
+
+                span.pushFreeList(buf);
+            } else {
+                span.pushDeferredFreeList(buf);
             }
         }
 
@@ -611,3 +593,5 @@ const mod_span_size = static_config.mod_span_size;
 
 const size_class_count = static_config.size_class_count;
 const large_class_count = static_config.large_class_count;
+
+const free_list_null = static_config.free_list_null;

@@ -5,7 +5,7 @@ const jdz_allocator = @import("jdz_allocator.zig");
 const JdzAllocConfig = jdz_allocator.JdzAllocConfig;
 
 pub fn SharedArenaHandler(comptime config: JdzAllocConfig) type {
-    const Arena = span_arena.Arena(config);
+    const Arena = span_arena.Arena(config, false);
 
     return struct {
         arena_list: ?*Arena,

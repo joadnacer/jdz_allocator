@@ -49,16 +49,6 @@ pub fn SpanStack(comptime config: JdzAllocConfig) type {
             return self.head;
         }
 
-        pub fn remove(self: *Self, span: *Span) void {
-            self.mutex.lock();
-            defer self.mutex.unlock();
-
-            if (span.prev) |prev| prev.next = span.next else self.head = span.next;
-            if (span.next) |next| next.prev = span.prev;
-
-            resetSpan(span);
-        }
-
         pub fn removeHead(self: *Self) void {
             assert(self.head != null);
 

@@ -40,6 +40,8 @@ pub const medium_class_count = (medium_max - small_max) / medium_granularity;
 pub const large_class_count = 64;
 pub const large_max = large_class_count * span_size - span_header_size;
 
+pub const free_list_null: usize = 0;
+
 pub const size_class_count = small_class_count + medium_class_count + 1;
 
 pub const small_size_classes = generateSmallSizeClasses();

@@ -18,6 +18,8 @@ const assert = std.debug.assert;
 pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
     const Span = span_file.Span(config);
 
+    const Arena = span_arena.Arena(config, true);
+
     const ArenaHandler = global_handler.GlobalArenaHandler(config);
 
     assert(config.span_alloc_count >= 1);
@@ -155,12 +157,14 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
             const size = @max(alignment, buf.len);
             const span = utils.getSpan(Span, buf.ptr);
 
+            const arena: *Arena = @ptrCast(@alignCast(span.arena));
+
             if (size <= medium_max) {
-                span.arena.freeSmallOrMedium(span, buf);
+                arena.freeSmallOrMedium(span, buf);
             } else if (size <= span_max) {
-                span.arena.cacheSpanOrFree(span);
+                arena.cacheSpanOrFree(span);
             } else if (size <= large_max) {
-                span.arena.cacheLargeSpanOrFree(span, config.recycle_large_spans);
+                arena.cacheLargeSpanOrFree(span, config.recycle_large_spans);
             } else {
                 _ = huge_count.fetchSub(1, .Monotonic);
                 backing_allocator.rawFree(buf, log2_align, ret_addr);

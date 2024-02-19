@@ -6,7 +6,7 @@ const utils = @import("utils.zig");
 const JdzAllocConfig = jdz_allocator.JdzAllocConfig;
 
 pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
-    const Arena = span_arena.Arena(config);
+    const Arena = span_arena.Arena(config, true);
 
     const Mutex = utils.getMutexType(config);
 

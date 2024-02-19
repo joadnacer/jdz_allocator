@@ -14,10 +14,9 @@ const assert = std.debug.assert;
 const span_size = static_config.span_size;
 const span_header_size = static_config.span_header_size;
 const page_size = static_config.page_size;
+const free_list_null = static_config.free_list_null;
 
 pub fn Span(comptime config: JdzAllocConfig) type {
-    const Mutex = utils.getMutexType(config);
-
     return struct {
         const Self = @This();
 
@@ -25,10 +24,10 @@ pub fn Span(comptime config: JdzAllocConfig) type {
 
         const SpanStack = span_stack.SpanStack(config);
 
-        arena: *Arena,
+        arena: *anyopaque,
         stack: ?*SpanStack,
-        free_list: ?usize,
-        mutex: Mutex,
+        free_list: usize,
+        deferred_free_list: usize,
         next: ?*Self,
         prev: ?*Self,
         alloc_ptr: usize,
@@ -45,44 +44,27 @@ pub fn Span(comptime config: JdzAllocConfig) type {
             self.pushFreeListElement(ptr);
         }
 
-        inline fn getBlockPtr(self: *Self, buf: []u8) [*]u8 {
-            if (!self.aligned_blocks) {
-                return buf.ptr;
-            } else {
-                const start_alloc_ptr = @intFromPtr(self) + span_header_size;
-                const block_offset = @intFromPtr(buf.ptr) - start_alloc_ptr;
+        pub fn pushDeferredFreeList(self: *Self, buf: []u8) void {
+            const ptr = self.getBlockPtr(buf);
 
-                return buf.ptr - block_offset % self.class.block_size;
-            }
-        }
-
-        inline fn pushFreeListElement(self: *Self, ptr: [*]u8) void {
-            const block: *?usize = @ptrCast(@alignCast(ptr));
-            block.* = self.free_list;
-            self.free_list = @intFromPtr(block);
+            self.pushDeferredFreeListElement(ptr);
         }
 
         pub fn allocate(self: *Self) [*]u8 {
-            assert(self.block_count < self.class.block_max);
-
-            self.block_count += 1;
-
-            if (self.free_list) |block| {
-                self.free_list = @as(*?usize, @ptrFromInt(block)).*;
-
-                return @ptrFromInt(block);
+            if (self.free_list != free_list_null) {
+                return self.popFreeListElement();
             }
 
-            return self.allocateFromAllocPtr();
+            return self.allocateDeferredOrPtr();
         }
 
-        pub fn allocateFromAllocPtr(self: *Self) [*]u8 {
-            assert(self.alloc_ptr <= @intFromPtr(self) + span_size - self.class.block_size);
+        pub fn popFreeListElement(self: *Self) [*]u8 {
+            _ = @atomicRmw(u16, &self.block_count, .Add, 1, .Monotonic);
 
-            const res: [*]u8 = @ptrFromInt(self.alloc_ptr);
-            self.alloc_ptr += self.class.block_size;
+            const block = self.free_list;
+            self.free_list = @as(*usize, @ptrFromInt(block)).*;
 
-            return res;
+            return @ptrFromInt(block);
         }
 
         pub fn splitLastSpans(self: *Self, span_count: u32) *Self {
@@ -106,6 +88,66 @@ pub fn Span(comptime config: JdzAllocConfig) type {
             self.alloc_size = remaining_span.initial_ptr - self.initial_ptr;
 
             return remaining_span;
+        }
+
+        inline fn allocateDeferredOrPtr(self: *Self) [*]u8 {
+            if (self.freeDeferredList()) {
+                return self.popFreeListElement();
+            } else {
+                return self.allocateFromAllocPtr();
+            }
+        }
+
+        inline fn allocateFromAllocPtr(self: *Self) [*]u8 {
+            assert(self.alloc_ptr <= @intFromPtr(self) + span_size - self.class.block_size);
+
+            _ = @atomicRmw(u16, &self.block_count, .Add, 1, .Monotonic);
+
+            const res: [*]u8 = @ptrFromInt(self.alloc_ptr);
+            self.alloc_ptr += self.class.block_size;
+
+            return res;
+        }
+
+        inline fn getBlockPtr(self: *Self, buf: []u8) [*]u8 {
+            if (!self.aligned_blocks) {
+                return buf.ptr;
+            } else {
+                const start_alloc_ptr = @intFromPtr(self) + span_header_size;
+                const block_offset = @intFromPtr(buf.ptr) - start_alloc_ptr;
+
+                return buf.ptr - block_offset % self.class.block_size;
+            }
+        }
+
+        inline fn pushFreeListElement(self: *Self, ptr: [*]u8) void {
+            const block: *?usize = @ptrCast(@alignCast(ptr));
+            block.* = self.free_list;
+            self.free_list = @intFromPtr(block);
+        }
+
+        inline fn pushDeferredFreeListElement(self: *Self, ptr: [*]u8) void {
+            const block: *usize = @ptrCast(@alignCast(ptr));
+
+            while (true) {
+                block.* = self.deferred_free_list;
+
+                if (@cmpxchgWeak(usize, &self.deferred_free_list, block.*, @intFromPtr(block), .Monotonic, .Monotonic) == null) {
+                    return;
+                }
+            }
+        }
+
+        inline fn freeDeferredList(self: *Self) bool {
+            assert(self.free_list == free_list_null);
+
+            if (self.deferred_free_list == free_list_null) return false;
+
+            const deferred_free_list = @atomicRmw(usize, &self.deferred_free_list, .Xchg, free_list_null, .Monotonic);
+
+            self.free_list = deferred_free_list;
+
+            return true;
         }
     };
 }
