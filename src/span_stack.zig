@@ -17,23 +17,34 @@ pub fn SpanStack(comptime config: JdzAllocConfig) type {
 
         pub fn write(self: *Self, span: *Span) void {
             assertNotInStack(span);
-            span.next = self.head;
-            self.head = span;
 
-            if (span.next) |next| next.prev = span;
+            var stack_span = self.head orelse {
+                self.head = span;
+
+                return;
+            };
+
+            while (stack_span.next) |next| {
+                stack_span = next;
+            }
+
+            stack_span.next = span;
+            span.prev = stack_span;
         }
 
         pub fn writeLinkedSpans(self: *Self, linked_spans: *Span) void {
-            var span = linked_spans;
+            var span = self.head orelse {
+                self.head = linked_spans;
+
+                return;
+            };
 
             while (span.next) |next| {
                 span = next;
             }
 
-            span.next = self.head;
-            self.head = linked_spans;
-
-            if (span.next) |next| next.prev = span;
+            span.next = linked_spans;
+            linked_spans.prev = span;
         }
 
         pub fn tryRead(self: *Self) ?*Span {
