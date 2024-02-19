@@ -10,37 +10,28 @@ const assert = std.debug.assert;
 pub fn SpanStack(comptime config: JdzAllocConfig) type {
     const Span = span_file.Span(config);
 
-    const Mutex = utils.getMutexType(config);
-
     return struct {
         head: ?*Span align(std.atomic.cache_line) = null,
-        mutex: Mutex = .{},
 
         const Self = @This();
 
         pub fn write(self: *Self, span: *Span) void {
-            self.mutex.lock();
-            defer self.mutex.unlock();
-
             assertNotInStack(span);
-            span.stack = self;
             span.next = self.head;
             self.head = span;
 
             if (span.next) |next| next.prev = span;
         }
 
-        pub fn writeIfNotIn(self: *Self, span: *Span) void {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+        pub fn writeLinkedSpans(self: *Self, linked_spans: *Span) void {
+            var span = linked_spans;
 
-            if (span.stack == self) return;
+            while (span.next) |next| {
+                span = next;
+            }
 
-            assertNotInStack(span);
-
-            span.stack = self;
             span.next = self.head;
-            self.head = span;
+            self.head = linked_spans;
 
             if (span.next) |next| next.prev = span;
         }
@@ -49,11 +40,8 @@ pub fn SpanStack(comptime config: JdzAllocConfig) type {
             return self.head;
         }
 
-        pub fn removeHead(self: *Self) void {
+        pub fn removeHead(self: *Self) *Span {
             assert(self.head != null);
-
-            self.mutex.lock();
-            defer self.mutex.unlock();
 
             const head = self.head.?;
             self.head = head.next;
@@ -61,13 +49,12 @@ pub fn SpanStack(comptime config: JdzAllocConfig) type {
             if (self.head) |new_head| new_head.prev = null;
 
             resetSpan(head);
+
+            return head;
         }
 
         pub fn getEmptySpans(self: *Self) ?*Span {
             if (self.head == null) return null;
-
-            self.mutex.lock();
-            defer self.mutex.unlock();
 
             var empty_spans_head: ?*Span = null;
             var empty_spans_cur: ?*Span = null;
@@ -85,6 +72,7 @@ pub fn SpanStack(comptime config: JdzAllocConfig) type {
 
                         empty_span.next = span;
                         empty_spans_cur = span;
+                        span.prev = empty_span;
                     } else {
                         empty_spans_head = span;
                         empty_spans_cur = span;
@@ -95,6 +83,38 @@ pub fn SpanStack(comptime config: JdzAllocConfig) type {
             }
 
             return empty_spans_head;
+        }
+
+        pub fn getPartialSpans(self: *Self) ?*Span {
+            if (self.head == null) return null;
+
+            var partial_spans_head: ?*Span = null;
+            var partial_spans_cur: ?*Span = null;
+
+            var opt_span = self.head;
+
+            while (opt_span) |span| {
+                assert(span != span.next);
+
+                if (span.block_count != span.class.block_max) {
+                    opt_span = self.removeFromListGetNext(span);
+
+                    if (partial_spans_cur) |partial_span| {
+                        assert(partial_span != span);
+
+                        partial_span.next = span;
+                        partial_spans_cur = span;
+                        span.prev = partial_span;
+                    } else {
+                        partial_spans_head = span;
+                        partial_spans_cur = span;
+                    }
+                } else {
+                    opt_span = span.next;
+                }
+            }
+
+            return partial_spans_head;
         }
 
         fn removeFromListGetNext(self: *Self, span: *Span) ?*Span {
@@ -113,13 +133,11 @@ pub fn SpanStack(comptime config: JdzAllocConfig) type {
         inline fn resetSpan(span: *Span) void {
             span.next = null;
             span.prev = null;
-            span.stack = null;
         }
 
         inline fn assertNotInStack(span: *Span) void {
             assert(span.next == null);
             assert(span.prev == null);
-            assert(span.stack == null);
         }
     };
 }

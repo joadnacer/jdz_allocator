@@ -25,7 +25,6 @@ pub fn Span(comptime config: JdzAllocConfig) type {
         const SpanStack = span_stack.SpanStack(config);
 
         arena: *anyopaque,
-        stack: ?*SpanStack,
         free_list: usize,
         deferred_free_list: usize,
         next: ?*Self,
@@ -73,6 +72,13 @@ pub fn Span(comptime config: JdzAllocConfig) type {
 
         pub fn splitFirstSpanReturnRemaining(self: *Self) *Self {
             return self.splitFirstSpansReturnRemaining(1);
+        }
+
+        pub fn splitFirstSpanReturnRemainingIfExist(self: *Self) *Self {
+            return if (self.span_count > 1)
+                self.splitFirstSpansReturnRemaining(1)
+            else
+                self;
         }
 
         pub fn splitFirstSpansReturnRemaining(self: *Self, span_count: u32) *Self {

@@ -31,6 +31,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
     return struct {
         backing_allocator: std.mem.Allocator,
         spans: [size_class_count]SpanStack,
+        full_spans: [size_class_count]SpanStack,
         span_count: usize,
         cache: ArenaSpanCache,
         large_cache: [large_class_count - 1]ArenaLargeCache,
@@ -56,6 +57,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             return .{
                 .backing_allocator = config.backing_allocator,
                 .spans = .{.{}} ** size_class_count,
+                .full_spans = .{.{}} ** size_class_count,
                 .span_count = 0,
                 .cache = ArenaSpanCache.init(),
                 .large_cache = large_cache,
@@ -113,9 +115,17 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         }
 
         fn allocateGeneric(self: *Self, size_class: SizeClass) ?[*]u8 {
+            return self.allocateFromSpanStack(size_class) orelse
+                self.allocateFromFullSpans(size_class) orelse
+                self.allocateFromCacheOrNew(size_class);
+        }
+
+        fn allocateFromSpanStack(self: *Self, size_class: SizeClass) ?[*]u8 {
             while (self.spans[size_class.class_idx].tryRead()) |span| {
                 if (span.block_count == span.class.block_max) {
-                    self.spans[size_class.class_idx].removeHead();
+                    const full_span = self.spans[size_class.class_idx].removeHead();
+
+                    self.full_spans[size_class.class_idx].write(full_span);
 
                     continue;
                 }
@@ -123,7 +133,19 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
                 return span.allocate();
             }
 
-            return self.allocateFromCacheOrNew(size_class);
+            return null;
+        }
+
+        fn allocateFromFullSpans(self: *Self, size_class: SizeClass) ?[*]u8 {
+            const partial_span = self.full_spans[size_class.class_idx].getPartialSpans() orelse {
+                return null;
+            };
+
+            const leftover_partials = partial_span.splitFirstSpanReturnRemainingIfExist();
+
+            self.spans[size_class.class_idx].writeLinkedSpans(leftover_partials);
+
+            return partial_span.allocate();
         }
 
         fn allocateFromCacheOrNew(self: *Self, size_class: SizeClass) ?[*]u8 {
@@ -151,7 +173,6 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         fn initialiseFreshSpan(self: *Self, span: *Span, size_class: SizeClass) void {
             span.* = .{
                 .arena = self,
-                .stack = null,
                 .initial_ptr = span.initial_ptr,
                 .alloc_ptr = @intFromPtr(span) + span_header_size,
                 .alloc_size = span.alloc_size,
@@ -329,7 +350,6 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         fn initialiseFreshLargeSpan(self: *Self, span: *Span, span_count: u32) void {
             span.* = .{
                 .arena = self,
-                .stack = null,
                 .initial_ptr = span.initial_ptr,
                 .alloc_ptr = @intFromPtr(span) + span_header_size,
                 .alloc_size = span.alloc_size,
@@ -494,11 +514,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         pub fn freeSmallOrMedium(self: *Self, span: *Span, buf: []u8) void {
             self.pushFreeListElement(span, buf);
 
-            const block_count = @atomicRmw(u16, &span.block_count, .Sub, 1, .Monotonic);
-
-            if (block_count == span.class.block_max) {
-                self.spans[span.class.class_idx].writeIfNotIn(span);
-            }
+            _ = @atomicRmw(u16, &span.block_count, .Sub, 1, .Monotonic);
         }
 
         const pushFreeListElement = if (is_threadlocal)
