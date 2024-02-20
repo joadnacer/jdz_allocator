@@ -5,7 +5,7 @@ pub const Lock = enum {
     locked,
 
     pub fn tryAcquire(lock: *Lock) bool {
-        return @cmpxchgWeak(Lock, lock, .unlocked, .locked, .Acquire, .Monotonic) == null;
+        return @cmpxchgStrong(Lock, lock, .unlocked, .locked, .Acquire, .Monotonic) == null;
     }
 
     pub fn acquire(lock: *Lock) void {
