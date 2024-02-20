@@ -2,7 +2,7 @@ const std = @import("std");
 
 const jdz_allocator = @import("jdz_allocator.zig");
 const arena = @import("arena.zig");
-const span_stack = @import("span_stack.zig");
+const span_list = @import("span_list.zig");
 const static_config = @import("static_config.zig");
 const utils = @import("utils.zig");
 
@@ -22,7 +22,7 @@ pub fn Span(comptime config: JdzAllocConfig) type {
 
         const Arena = arena.Arena(config);
 
-        const SpanStack = span_stack.SpanStack(config);
+        const SpanList = span_list.SpanList(config);
 
         arena: *anyopaque,
         free_list: usize,

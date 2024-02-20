@@ -7,7 +7,7 @@ const JdzAllocConfig = jdz_allocator.JdzAllocConfig;
 const testing = std.testing;
 const assert = std.debug.assert;
 
-pub fn SpanStack(comptime config: JdzAllocConfig) type {
+pub fn SpanList(comptime config: JdzAllocConfig) type {
     const Span = span_file.Span(config);
 
     return struct {
@@ -16,20 +16,20 @@ pub fn SpanStack(comptime config: JdzAllocConfig) type {
         const Self = @This();
 
         pub fn write(self: *Self, span: *Span) void {
-            assertNotInStack(span);
+            assertNotInList(span);
 
-            var stack_span = self.head orelse {
+            var list_span = self.head orelse {
                 self.head = span;
 
                 return;
             };
 
-            while (stack_span.next) |next| {
-                stack_span = next;
+            while (list_span.next) |next| {
+                list_span = next;
             }
 
-            stack_span.next = span;
-            span.prev = stack_span;
+            list_span.next = span;
+            span.prev = list_span;
         }
 
         pub fn writeLinkedSpans(self: *Self, linked_spans: *Span) void {
@@ -146,7 +146,7 @@ pub fn SpanStack(comptime config: JdzAllocConfig) type {
             span.prev = null;
         }
 
-        inline fn assertNotInStack(span: *Span) void {
+        inline fn assertNotInList(span: *Span) void {
             assert(span.next == null);
             assert(span.prev == null);
         }

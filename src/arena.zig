@@ -1,5 +1,5 @@
 const std = @import("std");
-const span_stack = @import("span_stack.zig");
+const span_list = @import("span_list.zig");
 const span_cache = @import("span_cache.zig");
 const stack = @import("bounded_stack.zig");
 const jdz_allocator = @import("jdz_allocator.zig");
@@ -18,7 +18,7 @@ const cache_line = std.atomic.cache_line;
 pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) type {
     const Span = span_file.Span(config);
 
-    const SpanStack = span_stack.SpanStack(config);
+    const SpanList = span_list.SpanList(config);
 
     const ArenaSpanCache = span_cache.SpanCache(config);
 
@@ -30,8 +30,8 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
 
     return struct {
         backing_allocator: std.mem.Allocator,
-        spans: [size_class_count]SpanStack,
-        full_spans: [size_class_count]SpanStack,
+        spans: [size_class_count]SpanList,
+        full_spans: [size_class_count]SpanList,
         span_count: usize,
         cache: ArenaSpanCache,
         large_cache: [large_class_count - 1]ArenaLargeCache,
@@ -72,7 +72,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             self.writer_lock.acquire();
             defer self.writer_lock.release();
 
-            self.freeEmptySpansFromStacks();
+            self.freeEmptySpansFromLists();
 
             while (self.cache.tryRead()) |span| {
                 self.freeSpan(span);
@@ -115,12 +115,12 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         }
 
         fn allocateGeneric(self: *Self, size_class: SizeClass) ?[*]u8 {
-            return self.allocateFromSpanStack(size_class) orelse
+            return self.allocateFromSpanList(size_class) orelse
                 self.allocateFromFullSpans(size_class) orelse
                 self.allocateFromCacheOrNew(size_class);
         }
 
-        fn allocateFromSpanStack(self: *Self, size_class: SizeClass) ?[*]u8 {
+        fn allocateFromSpanList(self: *Self, size_class: SizeClass) ?[*]u8 {
             while (self.spans[size_class.class_idx].tryRead()) |span| {
                 if (span.block_count == span.class.block_max) {
                     const full_span = self.spans[size_class.class_idx].removeHead();
@@ -194,7 +194,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
 
         fn getSpanFromCacheOrNewSplitting(self: *Self) ?*Span {
             return self.cache.tryRead() orelse
-                self.getEmptySpansFromStacks() orelse
+                self.getEmptySpansFromLists() orelse
                 self.getSpansFromMapCache() orelse
                 self.getSpansFromLargeCache() orelse
                 self.mapSpan(MapMode.multiple, config.span_alloc_count);
@@ -202,12 +202,12 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
 
         fn getSpanFromCacheOrNewNonSplitting(self: *Self) ?*Span {
             return self.cache.tryRead() orelse
-                self.getEmptySpansFromStacks() orelse
+                self.getEmptySpansFromLists() orelse
                 self.getSpansFromMapCache() orelse
                 self.mapSpan(MapMode.multiple, config.span_alloc_count);
         }
 
-        fn getEmptySpansFromStacks(self: *Self) ?*Span {
+        fn getEmptySpansFromLists(self: *Self) ?*Span {
             var ret_span: ?*Span = null;
 
             for (&self.spans) |*spans| {
@@ -555,17 +555,17 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             }
         }
 
-        fn freeEmptySpansFromStacks(self: *Self) void {
+        fn freeEmptySpansFromLists(self: *Self) void {
             for (&self.spans) |*spans| {
-                self.freeStack(spans);
+                self.freeList(spans);
             }
 
             for (&self.full_spans) |*full_spans| {
-                self.freeStack(full_spans);
+                self.freeList(full_spans);
             }
         }
 
-        fn freeStack(self: *Self, spans: *SpanStack) void {
+        fn freeList(self: *Self, spans: *SpanList) void {
             var empty_spans = spans.getEmptySpans();
 
             while (empty_spans) |span| {
