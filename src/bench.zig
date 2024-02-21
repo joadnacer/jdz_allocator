@@ -1,5 +1,6 @@
 const std = @import("std");
 const jdz = @import("jdz_allocator.zig");
+const static_config = @import("static_config.zig");
 
 const mixed_rounds = 10_000_000;
 const mixed_min = 1;
@@ -7,15 +8,15 @@ const mixed_max = 80000;
 
 const small_rounds = 10_000_000;
 const small_min = 1;
-const small_max = 2048;
+const small_max = static_config.small_max;
 
 const medium_rounds = 10_000_000;
-const medium_min = 2049;
-const medium_max = 32512;
+const medium_min = static_config.small_max + 1;
+const medium_max = static_config.medium_max;
 
 const big_rounds = 10_000_000;
-const big_min = 32513;
-const big_max = 4194176;
+const big_min = static_config.medium_max + 1;
+const big_max = static_config.large_max;
 
 const BUFFER_CAPACITY = 256;
 
