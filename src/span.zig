@@ -8,6 +8,8 @@ const utils = @import("utils.zig");
 
 const JdzAllocConfig = jdz_allocator.JdzAllocConfig;
 const SizeClass = static_config.SizeClass;
+const Atomic = std.atomic.Atomic;
+const RwLock = std.Thread.RwLock;
 
 const assert = std.debug.assert;
 
@@ -15,6 +17,8 @@ const span_size = static_config.span_size;
 const span_header_size = static_config.span_header_size;
 const page_size = static_config.page_size;
 const free_list_null = static_config.free_list_null;
+
+const deferred_pending_free: usize = @bitCast(@as(isize, -1));
 
 pub fn Span(comptime config: JdzAllocConfig) type {
     return struct {
@@ -27,11 +31,13 @@ pub fn Span(comptime config: JdzAllocConfig) type {
         arena: *anyopaque,
         free_list: usize,
         deferred_free_list: usize,
+        deferred_lock: RwLock,
         next: ?*Self,
         prev: ?*Self,
         alloc_ptr: usize,
         class: SizeClass,
         block_count: u16,
+        deferred_frees: u16,
         initial_ptr: usize,
         alloc_size: usize,
         span_count: u32,
@@ -41,6 +47,8 @@ pub fn Span(comptime config: JdzAllocConfig) type {
             const ptr = self.getBlockPtr(buf);
 
             self.pushFreeListElement(ptr);
+
+            self.block_count -= 1;
         }
 
         pub fn pushDeferredFreeList(self: *Self, buf: []u8) void {
@@ -58,12 +66,16 @@ pub fn Span(comptime config: JdzAllocConfig) type {
         }
 
         pub fn popFreeListElement(self: *Self) [*]u8 {
-            _ = @atomicRmw(u16, &self.block_count, .Add, 1, .Monotonic);
+            self.block_count += 1;
 
             const block = self.free_list;
             self.free_list = @as(*usize, @ptrFromInt(block)).*;
 
             return @ptrFromInt(block);
+        }
+
+        pub fn isFull(self: *Self) bool {
+            return self.block_count == self.class.block_max and self.deferred_frees == 0;
         }
 
         pub fn splitLastSpans(self: *Self, span_count: u32) *Self {
@@ -107,7 +119,7 @@ pub fn Span(comptime config: JdzAllocConfig) type {
         inline fn allocateFromAllocPtr(self: *Self) [*]u8 {
             assert(self.alloc_ptr <= @intFromPtr(self) + span_size - self.class.block_size);
 
-            _ = @atomicRmw(u16, &self.block_count, .Add, 1, .Monotonic);
+            self.block_count += 1;
 
             const res: [*]u8 = @ptrFromInt(self.alloc_ptr);
             self.alloc_ptr += self.class.block_size;
@@ -135,10 +147,15 @@ pub fn Span(comptime config: JdzAllocConfig) type {
         inline fn pushDeferredFreeListElement(self: *Self, ptr: [*]u8) void {
             const block: *usize = @ptrCast(@alignCast(ptr));
 
+            self.deferred_lock.lockShared();
+            defer self.deferred_lock.unlockShared();
+
             while (true) {
                 block.* = self.deferred_free_list;
 
                 if (@cmpxchgWeak(usize, &self.deferred_free_list, block.*, @intFromPtr(block), .Monotonic, .Monotonic) == null) {
+                    _ = @atomicRmw(u16, &self.deferred_frees, .Add, 1, .Monotonic);
+
                     return;
                 }
             }
@@ -149,9 +166,13 @@ pub fn Span(comptime config: JdzAllocConfig) type {
 
             if (self.deferred_free_list == free_list_null) return false;
 
-            const deferred_free_list = @atomicRmw(usize, &self.deferred_free_list, .Xchg, free_list_null, .Monotonic);
+            self.deferred_lock.lock();
+            defer self.deferred_lock.unlock();
 
-            self.free_list = deferred_free_list;
+            self.free_list = self.deferred_free_list;
+            self.block_count -= self.deferred_frees;
+            self.deferred_free_list = free_list_null;
+            self.deferred_frees = 0;
 
             return true;
         }

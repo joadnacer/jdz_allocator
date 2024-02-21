@@ -10,6 +10,7 @@ const utils = @import("utils.zig");
 
 const JdzAllocConfig = jdz_allocator.JdzAllocConfig;
 const SizeClass = static_config.SizeClass;
+const Atomic = std.atomic.Atomic;
 
 const assert = std.debug.assert;
 
@@ -122,7 +123,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
 
         fn allocateFromSpanList(self: *Self, size_class: SizeClass) ?[*]u8 {
             while (self.spans[size_class.class_idx].tryRead()) |span| {
-                if (span.block_count == span.class.block_max) {
+                if (span.isFull()) {
                     const full_span = self.spans[size_class.class_idx].removeHead();
 
                     self.full_spans[size_class.class_idx].write(full_span);
@@ -179,9 +180,11 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
                 .class = size_class,
                 .free_list = free_list_null,
                 .deferred_free_list = free_list_null,
+                .deferred_lock = .{},
                 .next = null,
                 .prev = null,
                 .block_count = 0,
+                .deferred_frees = 0,
                 .span_count = 1,
                 .aligned_blocks = false,
             };
@@ -356,9 +359,11 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
                 .class = undefined,
                 .free_list = free_list_null,
                 .deferred_free_list = free_list_null,
+                .deferred_lock = .{},
                 .next = null,
                 .prev = null,
                 .block_count = 0,
+                .deferred_frees = 0,
                 .span_count = span_count,
                 .aligned_blocks = false,
             };
@@ -511,18 +516,12 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         ///
         /// Single Span Free/Cache
         ///
-        pub fn freeSmallOrMedium(self: *Self, span: *Span, buf: []u8) void {
-            self.pushFreeListElement(span, buf);
-
-            _ = @atomicRmw(u16, &span.block_count, .Sub, 1, .Monotonic);
-        }
-
-        const pushFreeListElement = if (is_threadlocal)
-            pushFreeListElementThreadLocal
+        pub const freeSmallOrMedium = if (is_threadlocal)
+            freeSmallOrMediumThreadLocal
         else
-            pushFreeListElementShared;
+            freeSmallOrMediumShared;
 
-        fn pushFreeListElementThreadLocal(self: *Self, span: *Span, buf: []u8) void {
+        fn freeSmallOrMediumThreadLocal(self: *Self, span: *Span, buf: []u8) void {
             if (self.thread_id == std.Thread.getCurrentId()) {
                 span.pushFreeList(buf);
             } else {
@@ -530,7 +529,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             }
         }
 
-        fn pushFreeListElementShared(self: *Self, span: *Span, buf: []u8) void {
+        fn freeSmallOrMediumShared(self: *Self, span: *Span, buf: []u8) void {
             if (self.thread_id == std.Thread.getCurrentId() and self.tryAcquire()) {
                 defer self.release();
 
