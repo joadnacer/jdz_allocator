@@ -3,10 +3,6 @@ const utils = @import("utils.zig");
 
 const testing = std.testing;
 const assert = std.debug.assert;
-const Atomic = std.atomic.Atomic;
-const Ordering = std.atomic.Ordering;
-
-const cache_line = std.atomic.cache_line;
 
 pub fn BoundedStack(comptime T: type, comptime buffer_size: usize) type {
     return struct {

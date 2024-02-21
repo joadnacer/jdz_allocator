@@ -42,9 +42,7 @@ pub fn JdzAllocator(comptime config: JdzAllocConfig) type {
     assert(span_header_size % small_granularity == 0);
 
     // These asserts must be true for MPSC queue to work
-    assert(config.cache_limit > 1);
     assert(config.large_cache_limit > 1);
-    assert(utils.isPowerOfTwo(config.cache_limit));
     assert(utils.isPowerOfTwo(config.large_cache_limit));
 
     return struct {
