@@ -16,6 +16,8 @@ const assert = std.debug.assert;
 
 const cache_line = std.atomic.cache_line;
 
+threadlocal var cached_thread_id: ?std.Thread.Id = null;
+
 pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) type {
     const Span = span_file.Span(config);
 
@@ -106,6 +108,8 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         /// Small Or Medium Allocations
         ///
         pub fn allocateToSpan(self: *Self, size_class: SizeClass) ?[*]u8 {
+            assert(size_class.class_idx != span_class.class_idx);
+
             if (self.spans[size_class.class_idx].tryRead()) |span| {
                 if (span.free_list != free_list_null) {
                     return span.popFreeListElement();
@@ -522,7 +526,9 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             freeSmallOrMediumShared;
 
         fn freeSmallOrMediumThreadLocal(self: *Self, span: *Span, buf: []u8) void {
-            if (self.thread_id == std.Thread.getCurrentId()) {
+            const tid = getThreadId();
+
+            if (self.thread_id == tid) {
                 span.pushFreeList(buf);
             } else {
                 span.pushDeferredFreeList(buf);
@@ -530,13 +536,23 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         }
 
         fn freeSmallOrMediumShared(self: *Self, span: *Span, buf: []u8) void {
-            if (self.thread_id == std.Thread.getCurrentId() and self.tryAcquire()) {
+            const tid = getThreadId();
+
+            if (self.thread_id == tid and self.tryAcquire()) {
                 defer self.release();
 
                 span.pushFreeList(buf);
             } else {
                 span.pushDeferredFreeList(buf);
             }
+        }
+
+        inline fn getThreadId() std.Thread.Id {
+            return cached_thread_id orelse {
+                cached_thread_id = std.Thread.getCurrentId();
+
+                return cached_thread_id.?;
+            };
         }
 
         fn freeSpan(self: *Self, span: *Span) void {

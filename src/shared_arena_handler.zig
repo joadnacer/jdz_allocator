@@ -4,6 +4,8 @@ const jdz_allocator = @import("jdz_allocator.zig");
 
 const JdzAllocConfig = jdz_allocator.JdzAllocConfig;
 
+threadlocal var cached_thread_id: ?std.Thread.Id = null;
+
 pub fn SharedArenaHandler(comptime config: JdzAllocConfig) type {
     const Arena = span_arena.Arena(config, false);
 
@@ -36,7 +38,7 @@ pub fn SharedArenaHandler(comptime config: JdzAllocConfig) type {
         }
 
         pub fn getArena(self: *Self) ?*Arena {
-            const tid = std.Thread.getCurrentId();
+            const tid = getThreadId();
 
             return self.findOwnedThreadArena(tid) orelse
                 self.claimOrCreateArena(tid);
@@ -73,7 +75,7 @@ pub fn SharedArenaHandler(comptime config: JdzAllocConfig) type {
         fn createArena(self: *Self) ?*Arena {
             const new_arena = config.backing_allocator.create(Arena) catch return null;
 
-            new_arena.* = Arena.init(.locked, std.Thread.getCurrentId());
+            new_arena.* = Arena.init(.locked, getThreadId());
 
             self.addArenaToList(new_arena);
 
@@ -108,6 +110,14 @@ pub fn SharedArenaHandler(comptime config: JdzAllocConfig) type {
             }
 
             return null;
+        }
+
+        inline fn getThreadId() std.Thread.Id {
+            return cached_thread_id orelse {
+                cached_thread_id = std.Thread.getCurrentId();
+
+                return cached_thread_id.?;
+            };
         }
     };
 }
