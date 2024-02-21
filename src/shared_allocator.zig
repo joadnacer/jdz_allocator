@@ -148,13 +148,14 @@ pub fn JdzAllocator(comptime config: JdzAllocConfig) type {
             const size = @max(alignment, buf.len);
             const span = utils.getSpan(Span, buf.ptr);
 
-            const arena: *Arena = @ptrCast(@alignCast(span.arena));
-
             if (size <= medium_max) {
+                const arena: *Arena = @ptrCast(@alignCast(span.arena));
                 arena.freeSmallOrMedium(span, buf);
             } else if (size <= span_max) {
+                const arena: *Arena = @ptrCast(@alignCast(span.arena));
                 arena.cacheSpanOrFree(span);
             } else if (size <= large_max) {
+                const arena: *Arena = @ptrCast(@alignCast(span.arena));
                 arena.cacheLargeSpanOrFree(span, config.recycle_large_spans);
             } else {
                 _ = self.huge_count.fetchSub(1, .Monotonic);
@@ -242,6 +243,7 @@ const span_align_max = static_config.span_align_max;
 test "small allocations - free in same order" {
     var jdz_allocator = JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
+
     const allocator = jdz_allocator.allocator();
 
     var list = std.ArrayList(*u64).init(std.testing.allocator);
@@ -261,6 +263,7 @@ test "small allocations - free in same order" {
 test "small allocations - free in reverse order" {
     var jdz_allocator = JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
+
     const allocator = jdz_allocator.allocator();
 
     var list = std.ArrayList(*u64).init(std.testing.allocator);
@@ -280,6 +283,7 @@ test "small allocations - free in reverse order" {
 test "small allocations - alloc free alloc" {
     var jdz_allocator = JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
+
     const allocator = jdz_allocator.allocator();
 
     const a = try allocator.create(u64);
@@ -291,6 +295,7 @@ test "small allocations - alloc free alloc" {
 test "large allocations" {
     var jdz_allocator = JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
+
     const allocator = jdz_allocator.allocator();
 
     const ptr1 = try allocator.alloc(u64, 42768);
@@ -304,6 +309,7 @@ test "large allocations" {
 test "very large allocation" {
     var jdz_allocator = JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
+
     const allocator = jdz_allocator.allocator();
 
     try std.testing.expectError(error.OutOfMemory, allocator.alloc(u8, std.math.maxInt(usize)));
@@ -312,6 +318,7 @@ test "very large allocation" {
 test "realloc" {
     var jdz_allocator = JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
+
     const allocator = jdz_allocator.allocator();
 
     var slice = try allocator.alignedAlloc(u8, @alignOf(u32), 1);
@@ -335,6 +342,7 @@ test "realloc" {
 test "shrink" {
     var jdz_allocator = JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
+
     const allocator = jdz_allocator.allocator();
 
     var slice = try allocator.alloc(u8, 20);
@@ -359,6 +367,7 @@ test "shrink" {
 test "large object - grow" {
     var jdz_allocator = JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
+
     const allocator = jdz_allocator.allocator();
 
     var slice1 = try allocator.alloc(u8, 8192 - 20);
@@ -377,6 +386,7 @@ test "large object - grow" {
 test "realloc small object to large object" {
     var jdz_allocator = JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
+
     const allocator = jdz_allocator.allocator();
 
     var slice = try allocator.alloc(u8, 70);
@@ -394,6 +404,7 @@ test "realloc small object to large object" {
 test "shrink large object to large object" {
     var jdz_allocator = JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
+
     const allocator = jdz_allocator.allocator();
 
     var slice = try allocator.alloc(u8, 8192 + 50);
@@ -419,6 +430,7 @@ test "shrink large object to large object" {
 test "shrink large object to large object with larger alignment" {
     var jdz_allocator = JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
+
     const allocator = jdz_allocator.allocator();
 
     var debug_buffer: [1000]u8 = undefined;
@@ -455,6 +467,7 @@ test "shrink large object to large object with larger alignment" {
 test "realloc large object to small object" {
     var jdz_allocator = JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
+
     const allocator = jdz_allocator.allocator();
 
     var slice = try allocator.alloc(u8, 8192 + 50);
@@ -470,6 +483,7 @@ test "realloc large object to small object" {
 test "realloc large object to larger alignment" {
     var jdz_allocator = JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
+
     const allocator = jdz_allocator.allocator();
 
     var debug_buffer: [1000]u8 = undefined;
@@ -511,6 +525,7 @@ test "realloc large object to larger alignment" {
 test "large object shrinks to small" {
     var jdz_allocator = JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
+
     const allocator = jdz_allocator.allocator();
 
     const slice = try allocator.alloc(u8, 8192 + 50);
@@ -522,6 +537,7 @@ test "large object shrinks to small" {
 test "objects of size 1024 and 2048" {
     var jdz_allocator = JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
+
     const allocator = jdz_allocator.allocator();
 
     const slice = try allocator.alloc(u8, 1025);
@@ -534,15 +550,40 @@ test "objects of size 1024 and 2048" {
 test "max large alloc" {
     var jdz_allocator = JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
+
     const allocator = jdz_allocator.allocator();
 
     const buf = try allocator.alloc(u8, large_max);
     defer allocator.free(buf);
 }
 
+test "huge alloc" {
+    var jdz_allocator = JdzAllocator(.{}).init();
+    defer jdz_allocator.deinit();
+
+    const allocator = jdz_allocator.allocator();
+
+    const buf = try allocator.alloc(u8, large_max + 1);
+    defer allocator.free(buf);
+}
+
+test "huge alloc does not try to access span" {
+    var jdz_allocator = JdzAllocator(.{}).init();
+    defer jdz_allocator.deinit();
+
+    const allocator = jdz_allocator.allocator();
+
+    const buf1 = try allocator.alloc(u8, large_max + 1);
+    const buf2 = try allocator.alloc(u8, large_max + 1);
+
+    allocator.free(buf1);
+    allocator.free(buf2);
+}
+
 test "small alignment small alloc" {
     var jdz_allocator = JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
+
     const allocator = jdz_allocator.allocator();
 
     const slice = allocator.rawAlloc(1, 4, @returnAddress()).?;
@@ -554,6 +595,7 @@ test "small alignment small alloc" {
 test "medium alignment small alloc" {
     var jdz_allocator = JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
+
     const allocator = jdz_allocator.allocator();
 
     const alignment: u8 = @truncate(log2(utils.roundUpToPowerOfTwo(small_max + 1)));
@@ -569,6 +611,7 @@ test "medium alignment small alloc" {
 test "page size alignment small alloc" {
     var jdz_allocator = JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
+
     const allocator = jdz_allocator.allocator();
 
     const slice = allocator.rawAlloc(1, page_alignment, @returnAddress()).?;
@@ -580,6 +623,7 @@ test "page size alignment small alloc" {
 test "small alignment large alloc" {
     var jdz_allocator = JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
+
     const allocator = jdz_allocator.allocator();
 
     const slice = allocator.rawAlloc(span_max, 4, @returnAddress()).?;
@@ -591,6 +635,7 @@ test "small alignment large alloc" {
 test "medium alignment large alloc" {
     var jdz_allocator = JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
+
     const allocator = jdz_allocator.allocator();
 
     const alignment: u8 = @truncate(log2(utils.roundUpToPowerOfTwo(small_max + 1)));
@@ -606,6 +651,7 @@ test "medium alignment large alloc" {
 test "page size alignment large alloc" {
     var jdz_allocator = JdzAllocator(.{}).init();
     defer jdz_allocator.deinit();
+
     const allocator = jdz_allocator.allocator();
 
     const slice = allocator.rawAlloc(span_max, page_alignment, @returnAddress()).?;

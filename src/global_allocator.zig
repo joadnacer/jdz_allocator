@@ -157,13 +157,14 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
             const size = @max(alignment, buf.len);
             const span = utils.getSpan(Span, buf.ptr);
 
-            const arena: *Arena = @ptrCast(@alignCast(span.arena));
-
             if (size <= medium_max) {
+                const arena: *Arena = @ptrCast(@alignCast(span.arena));
                 arena.freeSmallOrMedium(span, buf);
             } else if (size <= span_max) {
+                const arena: *Arena = @ptrCast(@alignCast(span.arena));
                 arena.cacheSpanOrFree(span);
             } else if (size <= large_max) {
+                const arena: *Arena = @ptrCast(@alignCast(span.arena));
                 arena.cacheLargeSpanOrFree(span, config.recycle_large_spans);
             } else {
                 _ = huge_count.fetchSub(1, .Monotonic);
@@ -543,6 +544,27 @@ test "max large alloc" {
 
     const buf = try allocator.alloc(u8, large_max);
     defer allocator.free(buf);
+}
+
+test "huge alloc" {
+    const jdz_allocator = JdzGlobalAllocator(.{});
+
+    const allocator = jdz_allocator.allocator();
+
+    const buf = try allocator.alloc(u8, large_max + 1);
+    defer allocator.free(buf);
+}
+
+test "huge alloc does not try to access span" {
+    const jdz_allocator = JdzGlobalAllocator(.{});
+
+    const allocator = jdz_allocator.allocator();
+
+    const buf1 = try allocator.alloc(u8, large_max + 1);
+    const buf2 = try allocator.alloc(u8, large_max + 1);
+
+    allocator.free(buf1);
+    allocator.free(buf2);
 }
 
 test "small alignment small alloc" {
