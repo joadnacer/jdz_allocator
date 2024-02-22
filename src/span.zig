@@ -24,14 +24,13 @@ pub fn Span(comptime config: JdzAllocConfig) type {
     return struct {
         const Self = @This();
 
-        const Arena = arena.Arena(config);
-
         const SpanList = span_list.SpanList(config);
 
         arena: *anyopaque,
         free_list: usize,
         deferred_free_list: usize,
         deferred_lock: RwLock,
+        full: bool,
         next: ?*Self,
         prev: ?*Self,
         alloc_ptr: usize,

@@ -128,6 +128,8 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         fn allocateFromSpanList(self: *Self, size_class: SizeClass) ?[*]u8 {
             while (self.spans[size_class.class_idx].tryRead()) |span| {
                 if (span.isFull()) {
+                    span.full = true;
+
                     const full_span = self.spans[size_class.class_idx].removeHead();
 
                     self.full_spans[size_class.class_idx].write(full_span);
@@ -185,6 +187,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
                 .free_list = free_list_null,
                 .deferred_free_list = free_list_null,
                 .deferred_lock = .{},
+                .full = false,
                 .next = null,
                 .prev = null,
                 .block_count = 0,
@@ -363,6 +366,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
                 .class = undefined,
                 .free_list = free_list_null,
                 .deferred_free_list = free_list_null,
+                .full = false,
                 .deferred_lock = .{},
                 .next = null,
                 .prev = null,
@@ -530,6 +534,8 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
 
             if (self.thread_id == tid) {
                 span.pushFreeList(buf);
+
+                self.handleSpanNoLongerFull(span);
             } else {
                 span.pushDeferredFreeList(buf);
             }
@@ -542,8 +548,19 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
                 defer self.release();
 
                 span.pushFreeList(buf);
+
+                self.handleSpanNoLongerFull(span);
             } else {
                 span.pushDeferredFreeList(buf);
+            }
+        }
+
+        fn handleSpanNoLongerFull(self: *Self, span: *Span) void {
+            if (span.full) {
+                span.full = false;
+
+                self.full_spans[span.class.class_idx].remove(span);
+                self.spans[span.class.class_idx].write(span);
             }
         }
 

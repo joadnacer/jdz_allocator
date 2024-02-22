@@ -29,6 +29,36 @@ pub fn SpanList(comptime config: JdzAllocConfig) type {
             }
         }
 
+        pub fn tryRead(self: *Self) ?*Span {
+            return self.head;
+        }
+
+        pub fn remove(self: *Self, span: *Span) void {
+            assert(span.prev == null or span.prev != span.next);
+
+            if (span.prev) |prev| prev.next = span.next else self.head = span.next;
+            if (span.next) |next| next.prev = span.prev else self.tail = span.prev;
+
+            resetSpan(span);
+        }
+
+        pub fn removeHead(self: *Self) *Span {
+            assert(self.head != null);
+
+            const head = self.head.?;
+            self.head = head.next;
+
+            if (self.head) |new_head| {
+                new_head.prev = null;
+            } else {
+                self.tail = null;
+            }
+
+            resetSpan(head);
+
+            return head;
+        }
+
         pub fn writeLinkedSpans(self: *Self, linked_spans: *Span) void {
             if (self.tail) |tail| {
                 tail.next = linked_spans;
@@ -47,27 +77,6 @@ pub fn SpanList(comptime config: JdzAllocConfig) type {
             }
 
             self.tail = span;
-        }
-
-        pub fn tryRead(self: *Self) ?*Span {
-            return self.head;
-        }
-
-        pub fn removeHead(self: *Self) *Span {
-            assert(self.head != null);
-
-            const head = self.head.?;
-            self.head = head.next;
-
-            if (self.head) |new_head| {
-                new_head.prev = null;
-            } else {
-                self.tail = null;
-            }
-
-            resetSpan(head);
-
-            return head;
         }
 
         pub fn getEmptySpans(self: *Self) ?*Span {
@@ -135,14 +144,9 @@ pub fn SpanList(comptime config: JdzAllocConfig) type {
         }
 
         fn removeFromListGetNext(self: *Self, span: *Span) ?*Span {
-            assert(span.prev == null or span.prev != span.next);
-
-            if (span.prev) |prev| prev.next = span.next else self.head = span.next;
-            if (span.next) |next| next.prev = span.prev else self.tail = span.prev;
-
             const next = span.next;
 
-            resetSpan(span);
+            self.remove(span);
 
             return next;
         }
