@@ -11,40 +11,42 @@ pub fn SpanList(comptime config: JdzAllocConfig) type {
     const Span = span_file.Span(config);
 
     return struct {
-        head: ?*Span align(std.atomic.cache_line) = null,
+        head: ?*Span = null,
+        tail: ?*Span = null,
 
         const Self = @This();
 
         pub fn write(self: *Self, span: *Span) void {
             assertNotInList(span);
 
-            var list_span = self.head orelse {
+            if (self.tail) |tail| {
+                tail.next = span;
+                self.tail = span;
+                span.prev = tail;
+            } else {
                 self.head = span;
-
-                return;
-            };
-
-            while (list_span.next) |next| {
-                list_span = next;
+                self.tail = span;
             }
-
-            list_span.next = span;
-            span.prev = list_span;
         }
 
         pub fn writeLinkedSpans(self: *Self, linked_spans: *Span) void {
-            var span = self.head orelse {
+            if (self.tail) |tail| {
+                tail.next = linked_spans;
+                linked_spans.prev = tail;
+            } else {
                 self.head = linked_spans;
+            }
 
-                return;
-            };
+            var span = linked_spans;
 
             while (span.next) |next| {
+                span.next = next;
+                next.prev = span;
+
                 span = next;
             }
 
-            span.next = linked_spans;
-            linked_spans.prev = span;
+            self.tail = span;
         }
 
         pub fn tryRead(self: *Self) ?*Span {
@@ -57,7 +59,11 @@ pub fn SpanList(comptime config: JdzAllocConfig) type {
             const head = self.head.?;
             self.head = head.next;
 
-            if (self.head) |new_head| new_head.prev = null;
+            if (self.head) |new_head| {
+                new_head.prev = null;
+            } else {
+                self.tail = null;
+            }
 
             resetSpan(head);
 
@@ -132,7 +138,7 @@ pub fn SpanList(comptime config: JdzAllocConfig) type {
             assert(span.prev == null or span.prev != span.next);
 
             if (span.prev) |prev| prev.next = span.next else self.head = span.next;
-            if (span.next) |next| next.prev = span.prev;
+            if (span.next) |next| next.prev = span.prev else self.tail = span.prev;
 
             const next = span.next;
 
