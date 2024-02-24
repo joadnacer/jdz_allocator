@@ -111,38 +111,6 @@ pub fn SpanList(comptime config: JdzAllocConfig) type {
             return empty_spans_head;
         }
 
-        pub fn getPartialSpans(self: *Self) ?*Span {
-            if (self.head == null) return null;
-
-            var partial_spans_head: ?*Span = null;
-            var partial_spans_cur: ?*Span = null;
-
-            var opt_span = self.head;
-
-            while (opt_span) |span| {
-                assert(span != span.next);
-
-                if (span.block_count != span.class.block_max) {
-                    opt_span = self.removeFromListGetNext(span);
-
-                    if (partial_spans_cur) |partial_span| {
-                        assert(partial_span != span);
-
-                        partial_span.next = span;
-                        partial_spans_cur = span;
-                        span.prev = partial_span;
-                    } else {
-                        partial_spans_head = span;
-                        partial_spans_cur = span;
-                    }
-                } else {
-                    opt_span = span.next;
-                }
-            }
-
-            return partial_spans_head;
-        }
-
         fn removeFromListGetNext(self: *Self, span: *Span) ?*Span {
             const next = span.next;
 

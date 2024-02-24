@@ -1,5 +1,6 @@
 const std = @import("std");
 const span_list = @import("span_list.zig");
+const deferred_span_list = @import("deferred_span_list.zig");
 const span_cache = @import("span_cache.zig");
 const stack = @import("bounded_stack.zig");
 const jdz_allocator = @import("jdz_allocator.zig");
@@ -23,6 +24,8 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
 
     const SpanList = span_list.SpanList(config);
 
+    const DeferredSpanList = deferred_span_list.DeferredSpanList(config);
+
     const ArenaSpanCache = span_cache.SpanCache(config);
 
     const Lock = utils.getArenaLockType(config);
@@ -34,7 +37,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
     return struct {
         backing_allocator: std.mem.Allocator,
         spans: [size_class_count]SpanList,
-        full_spans: [size_class_count]SpanList,
+        deferred_partial_spans: [size_class_count]DeferredSpanList,
         span_count: usize,
         cache: ArenaSpanCache,
         large_cache: [large_class_count - 1]ArenaLargeCache,
@@ -60,7 +63,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             return .{
                 .backing_allocator = config.backing_allocator,
                 .spans = .{.{}} ** size_class_count,
-                .full_spans = .{.{}} ** size_class_count,
+                .deferred_partial_spans = .{.{}} ** size_class_count,
                 .span_count = 0,
                 .cache = ArenaSpanCache.init(),
                 .large_cache = large_cache,
@@ -121,18 +124,16 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
 
         fn allocateGeneric(self: *Self, size_class: SizeClass) ?[*]u8 {
             return self.allocateFromSpanList(size_class) orelse
-                self.allocateFromFullSpans(size_class) orelse
+                self.allocateFromDeferredPartialSpans(size_class) orelse
                 self.allocateFromCacheOrNew(size_class);
         }
 
         fn allocateFromSpanList(self: *Self, size_class: SizeClass) ?[*]u8 {
             while (self.spans[size_class.class_idx].tryRead()) |span| {
                 if (span.isFull()) {
-                    span.full = true;
+                    @atomicStore(bool, &span.full, true, .Monotonic);
 
-                    const full_span = self.spans[size_class.class_idx].removeHead();
-
-                    self.full_spans[size_class.class_idx].write(full_span);
+                    _ = self.spans[size_class.class_idx].removeHead();
 
                     continue;
                 }
@@ -143,14 +144,12 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             return null;
         }
 
-        fn allocateFromFullSpans(self: *Self, size_class: SizeClass) ?[*]u8 {
-            const partial_span = self.full_spans[size_class.class_idx].getPartialSpans() orelse {
+        fn allocateFromDeferredPartialSpans(self: *Self, size_class: SizeClass) ?[*]u8 {
+            const partial_span = self.deferred_partial_spans[size_class.class_idx].getAndRemoveList() orelse {
                 return null;
             };
 
-            const leftover_partials = partial_span.splitFirstSpanReturnRemainingIfExist();
-
-            self.spans[size_class.class_idx].writeLinkedSpans(leftover_partials);
+            self.spans[size_class.class_idx].writeLinkedSpans(partial_span);
 
             return partial_span.allocate();
         }
@@ -538,6 +537,8 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
                 self.handleSpanNoLongerFull(span);
             } else {
                 span.pushDeferredFreeList(buf);
+
+                self.handleSpanNoLongerFullDeferred(span);
             }
         }
 
@@ -552,15 +553,28 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
                 self.handleSpanNoLongerFull(span);
             } else {
                 span.pushDeferredFreeList(buf);
+
+                self.handleSpanNoLongerFullDeferred(span);
             }
         }
 
         fn handleSpanNoLongerFull(self: *Self, span: *Span) void {
             if (span.full) {
-                span.full = false;
+                const first_free = @atomicRmw(bool, &span.full, .Xchg, false, .Monotonic);
 
-                self.full_spans[span.class.class_idx].remove(span);
-                self.spans[span.class.class_idx].write(span);
+                if (first_free) {
+                    self.spans[span.class.class_idx].write(span);
+                }
+            }
+        }
+
+        fn handleSpanNoLongerFullDeferred(self: *Self, span: *Span) void {
+            if (span.full) {
+                const first_free = @atomicRmw(bool, &span.full, .Xchg, false, .Monotonic);
+
+                if (first_free) {
+                    self.deferred_partial_spans[span.class.class_idx].write(span);
+                }
             }
         }
 
@@ -592,8 +606,8 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
                 self.freeList(spans);
             }
 
-            for (&self.full_spans) |*full_spans| {
-                self.freeList(full_spans);
+            for (&self.deferred_partial_spans) |*deferred_partial_spans| {
+                self.freeDeferredList(deferred_partial_spans);
             }
         }
 
@@ -604,6 +618,18 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
                 empty_spans = span.next;
 
                 self.freeSpan(span);
+            }
+        }
+
+        fn freeDeferredList(self: *Self, deferred_spans: *DeferredSpanList) void {
+            var spans = deferred_spans.getAndRemoveList();
+
+            while (spans) |span| {
+                spans = span.next;
+
+                if (span.block_count == 0) {
+                    self.freeSpan(span);
+                }
             }
         }
 
