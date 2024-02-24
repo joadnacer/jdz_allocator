@@ -90,7 +90,7 @@ pub fn SpanList(comptime config: JdzAllocConfig) type {
             while (opt_span) |span| {
                 assert(span != span.next);
 
-                if (span.block_count == 0) {
+                if (span.isEmpty()) {
                     opt_span = self.removeFromListGetNext(span);
 
                     if (empty_spans_cur) |empty_span| {

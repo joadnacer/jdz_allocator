@@ -77,6 +77,10 @@ pub fn Span(comptime config: JdzAllocConfig) type {
             return self.block_count == self.class.block_max and self.deferred_frees == 0;
         }
 
+        pub fn isEmpty(self: *Self) bool {
+            return self.block_count - self.deferred_frees == 0;
+        }
+
         pub fn splitLastSpans(self: *Self, span_count: u32) *Self {
             return self.splitFirstSpansReturnRemaining(self.span_count - span_count);
         }

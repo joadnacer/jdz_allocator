@@ -167,7 +167,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         }
 
         fn allocateFromFreshSpan(span: *Span) [*]u8 {
-            assert(span.block_count == 0);
+            assert(span.isEmpty());
 
             const res: [*]u8 = @ptrFromInt(span.alloc_ptr);
             span.alloc_ptr += span.class.block_size;
@@ -348,7 +348,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         }
 
         fn allocateFromLargeSpan(span: *Span) [*]u8 {
-            assert(span.block_count == 0);
+            assert(span.isEmpty());
 
             const res: [*]u8 = @ptrFromInt(span.alloc_ptr);
             span.block_count = 1;
@@ -627,7 +627,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             while (spans) |span| {
                 spans = span.next;
 
-                if (span.block_count == 0) {
+                if (span.isEmpty()) {
                     self.freeSpan(span);
                 }
             }
