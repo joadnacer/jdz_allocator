@@ -15,7 +15,7 @@ pub const span_size = 65536;
 pub const mod_span_size = span_size - 1;
 
 // must be a multiple of small_granularity
-pub const span_header_size = 256;
+pub const span_header_size = 512;
 pub const span_effective_size = span_size - span_header_size;
 pub const span_max = span_effective_size;
 
