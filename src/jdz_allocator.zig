@@ -47,7 +47,7 @@ pub const JdzAllocConfig = struct {
     split_large_spans_to_large: bool = true,
 
     /// if leaks should be reported
-    report_leaks: bool = true,
+    report_leaks: bool = builtin.mode == .Debug,
 
     /// Whether to synchronize usage of this allocator.
     /// For actual thread safety, the backing allocator must also be thread safe.
