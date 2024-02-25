@@ -66,6 +66,7 @@ pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
 
             if (self.arena_list) |arena| {
                 arena.next = null;
+                arena.thread_id = std.Thread.getCurrentId();
 
                 thread_arena = arena;
 
