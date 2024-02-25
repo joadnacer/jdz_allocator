@@ -35,47 +35,15 @@ pub fn SpanCache(comptime config: JdzAllocConfig) type {
         }
 
         pub fn tryRead(self: *Self) ?*Span {
-            return self.cache.tryRead();
-        }
+            const span = self.cache.tryRead() orelse return null;
 
-        pub fn tryWriteLarge(self: *Self, large_span: *Span) ?*Span {
-            const to_move = large_span.span_count;
-            assert(to_move <= large_span.alloc_size / span_size);
+            if (span.span_count > 1) {
+                const split_spans = span.splitFirstSpanReturnRemaining();
 
-            var remaining_span = large_span;
-
-            for (0..to_move) |_| {
-                const cached = remaining_span;
-                remaining_span = self.cacheFromLargeReturnRemaining(remaining_span) orelse return null;
-
-                // was not written, cache is full
-                if (cached == remaining_span) return remaining_span;
+                _ = self.cache.tryWrite(split_spans);
             }
 
-            assert(remaining_span.alloc_size >= span_size);
-            return remaining_span;
-        }
-
-        fn cacheFromLargeReturnRemaining(self: *Self, large_span: *Span) ?*Span {
-            if (large_span.span_count == 1) {
-                if (self.cache.tryWrite(large_span)) return null;
-
-                return large_span;
-            }
-
-            const span = large_span;
-            const remaining_span = span.splitFirstSpanReturnRemaining();
-            span.alloc_size = remaining_span.initial_ptr - span.initial_ptr;
-            span.span_count = 1;
-
-            if (!self.cache.tryWrite(span)) {
-                span.alloc_size += remaining_span.alloc_size;
-                span.span_count += remaining_span.span_count;
-
-                return span;
-            }
-
-            return remaining_span;
+            return span;
         }
     };
 }

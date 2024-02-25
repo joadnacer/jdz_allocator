@@ -253,11 +253,8 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         fn getSpansFromLargeSpan(self: *Self, span: *Span) *Span {
             const to_cache = span.splitFirstSpanReturnRemaining();
 
-            if (self.cache.tryWriteLarge(to_cache)) |remaining| {
-                if (remaining.span_count > 1)
-                    self.cacheLargeSpanOrFree(remaining, false)
-                else
-                    self.cacheSpanOrFree(remaining);
+            if (!self.cache.tryWrite(to_cache)) {
+                self.cacheLargeSpanOrFree(to_cache, false);
             }
 
             return span;
@@ -415,9 +412,10 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             if (span.span_count > 1) {
                 const remaining = span.splitFirstSpanReturnRemaining();
 
-                if (self.cache.tryWriteLarge(remaining)) |leftover| {
-                    self.cacheFromMapping(leftover);
-                }
+                const could_cache = self.cache.tryWrite(remaining);
+
+                // should never be mapping if have spans in span cache
+                assert(could_cache);
             }
 
             return span;
@@ -641,8 +639,8 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
 
             if (!self.large_cache[span_count - 2].tryWrite(span)) {
                 if (recycle_large_spans) {
-                    if (self.cache.tryWriteLarge(span)) |remaining_span| {
-                        self.freeSpan(remaining_span);
+                    if (!self.cache.tryWrite(span)) {
+                        self.freeSpan(span);
                     }
 
                     return;
