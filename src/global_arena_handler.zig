@@ -11,27 +11,18 @@ pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
     return struct {
         const Arena = span_arena.Arena(config, true);
 
-        arena_list: ?*Arena,
-        // using mutex as not ABA free - can be done better in future
-        mutex: Mutex,
+        var preinit_arena: Arena = Arena.init(.unlocked, 0);
+        var arena_list: ?*Arena = &preinit_arena;
+        var mutex: Mutex = .{};
 
         threadlocal var thread_arena: ?*Arena = null;
 
-        const Self = @This();
-
-        pub fn init() Self {
-            return .{
-                .arena_list = null,
-                .mutex = .{},
-            };
-        }
-
-        pub fn deinit(self: *Self) usize {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+        pub fn deinit() usize {
+            mutex.lock();
+            defer mutex.unlock();
 
             var spans_leaked: usize = 0;
-            var opt_arena = self.arena_list;
+            var opt_arena = arena_list;
 
             while (opt_arena) |arena| {
                 const next = arena.next;
@@ -46,17 +37,17 @@ pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
             return spans_leaked;
         }
 
-        pub fn deinitThread(self: *Self) void {
+        pub fn deinitThread() void {
             const arena = thread_arena orelse return;
 
             thread_arena = null;
 
-            self.addArenaToList(arena);
+            addArenaToList(arena);
         }
 
-        pub fn getArena(self: *Self) ?*Arena {
+        pub fn getArena() ?*Arena {
             return thread_arena orelse
-                self.getArenaFromList() orelse
+                getArenaFromList() orelse
                 createArena();
         }
 
@@ -64,11 +55,12 @@ pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
             return thread_arena;
         }
 
-        inline fn getArenaFromList(self: *Self) ?*Arena {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+        inline fn getArenaFromList() ?*Arena {
+            mutex.lock();
+            defer mutex.unlock();
 
-            if (self.arena_list) |arena| {
+            if (arena_list) |arena| {
+                arena_list = arena.next;
                 arena.next = null;
                 arena.thread_id = std.Thread.getCurrentId();
 
@@ -90,17 +82,17 @@ pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
             return new_arena;
         }
 
-        fn addArenaToList(self: *Self, new_arena: *Arena) void {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+        fn addArenaToList(new_arena: *Arena) void {
+            mutex.lock();
+            defer mutex.unlock();
 
-            if (self.arena_list == null) {
-                self.arena_list = new_arena;
+            if (arena_list == null) {
+                arena_list = new_arena;
 
                 return;
             }
 
-            var arena = self.arena_list.?;
+            var arena = arena_list.?;
 
             while (arena.next) |next| {
                 arena = next;

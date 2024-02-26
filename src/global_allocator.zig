@@ -46,11 +46,6 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
     assert(utils.isPowerOfTwo(config.large_cache_limit));
 
     return struct {
-        backing_allocator: std.mem.Allocator,
-        arena_handler: ArenaHandler,
-        huge_count: Atomic(usize),
-
-        var arena_handler: ArenaHandler = ArenaHandler.init();
         var huge_count: Atomic(usize) = Atomic(usize).init(0);
         var backing_allocator = config.backing_allocator;
 
@@ -59,7 +54,7 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
         pub fn deinit() void {
             initialised = false;
 
-            const spans_leaked = arena_handler.deinit();
+            const spans_leaked = ArenaHandler.deinit();
 
             if (config.report_leaks) {
                 const log = std.log.scoped(.jdz_allocator);
@@ -76,7 +71,7 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
         }
 
         pub fn deinitThread() void {
-            arena_handler.deinitThread();
+            ArenaHandler.deinitThread();
         }
 
         pub fn allocator() std.mem.Allocator {
@@ -174,7 +169,7 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
         /// Allocation
         ///
         fn allocate(size: usize, log2_align: u8, ret_addr: usize) ?[*]u8 {
-            const arena = arena_handler.getArena() orelse return null;
+            const arena = ArenaHandler.getArena() orelse return null;
 
             return if (size <= small_max)
                 arena.allocateToSpan(utils.getSmallSizeClass(size))
