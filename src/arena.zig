@@ -6,6 +6,7 @@ const stack = @import("bounded_stack.zig");
 const jdz_allocator = @import("jdz_allocator.zig");
 const mpsc_queue = @import("bounded_mpsc_queue.zig");
 const span_file = @import("span.zig");
+const global_arena_handler = @import("global_arena_handler.zig");
 const static_config = @import("static_config.zig");
 const utils = @import("utils.zig");
 
@@ -33,6 +34,8 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
     const ArenaLargeCache = mpsc_queue.BoundedMpscQueue(*Span, config.large_cache_limit);
 
     const ArenaMapCache = stack.BoundedStack(*Span, config.map_cache_limit);
+
+    const GlobalArenaHandler = global_arena_handler.GlobalArenaHandler(config);
 
     return struct {
         backing_allocator: std.mem.Allocator,
@@ -527,9 +530,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             freeSmallOrMediumShared;
 
         fn freeSmallOrMediumThreadLocal(self: *Self, span: *Span, buf: []u8) void {
-            const tid = getThreadId();
-
-            if (self.thread_id == tid) {
+            if (self == GlobalArenaHandler.getThreadArena()) {
                 span.pushFreeList(buf);
 
                 self.handleSpanNoLongerFull(span);

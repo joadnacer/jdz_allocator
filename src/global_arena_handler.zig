@@ -6,11 +6,11 @@ const utils = @import("utils.zig");
 const JdzAllocConfig = jdz_allocator.JdzAllocConfig;
 
 pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
-    const Arena = span_arena.Arena(config, true);
-
     const Mutex = utils.getMutexType(config);
 
     return struct {
+        const Arena = span_arena.Arena(config, true);
+
         arena_list: ?*Arena,
         // using mutex as not ABA free - can be done better in future
         mutex: Mutex,
@@ -58,6 +58,10 @@ pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
             return thread_arena orelse
                 self.getArenaFromList() orelse
                 createArena();
+        }
+
+        pub fn getThreadArena() ?*Arena {
+            return thread_arena;
         }
 
         inline fn getArenaFromList(self: *Self) ?*Arena {
