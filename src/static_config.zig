@@ -7,8 +7,8 @@ const assert = std.debug.assert;
 
 pub const SizeClass = struct {
     block_size: u32,
-    block_max: u32,
-    class_idx: u32,
+    block_max: u16,
+    class_idx: u16,
 };
 
 pub const span_size = 65536;
