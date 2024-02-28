@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const jdz_allocator = @import("jdz_allocator.zig");
-const mpsc_queue = @import("bounded_mpsc_queue.zig");
+const bounded_stack = @import("bounded_stack.zig");
 const span_file = @import("span.zig");
 const static_config = @import("static_config.zig");
 const utils = @import("utils.zig");
@@ -17,7 +17,7 @@ pub fn SpanCache(comptime config: JdzAllocConfig) type {
 
     const Span = span_file.Span(config);
 
-    const Cache = mpsc_queue.BoundedMpscQueue(*Span, config.cache_limit);
+    const Cache = bounded_stack.BoundedStack(*Span, config.cache_limit);
 
     return struct {
         cache: Cache,
