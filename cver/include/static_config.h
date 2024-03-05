@@ -1,0 +1,13 @@
+#pragma once
+
+#define SPAN_ALLOC_COUNT (64)
+
+#define LARGE_SPAN_OVERHEAD_MUL (0.5)
+
+#define RECYCLE_LARGE_SPANS (1)
+
+#define PAGE_SIZE (4096)
+
+#define SPLIT_LARGE_SPANS_TO_ONE
+
+#define SPLIT_LARGE_SPANS_TO_LARGE

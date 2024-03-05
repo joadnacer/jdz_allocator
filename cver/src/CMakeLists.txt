@@ -1,0 +1,6 @@
+add_library(Arena arena.c)
+add_library(SpanCache span_cache.c)
+add_library(MpscLargeCache mpsc_large_cache.c)
+add_library(SpanList span_list.c)
+add_library(Span span.c)
+add_library(DeferredSpanList deferred_span_list.c)
