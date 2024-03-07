@@ -62,11 +62,11 @@ struct span_t {
     size_class_t class;
     span_t *next;
     span_t *prev;
-    uintptr_t alloc_ptr;
+    size_t alloc_ptr;
     uint16_t block_count;
     uint16_t deferred_frees;
-    uintptr_t initial_ptr;
-    uintptr_t alloc_size;
+    size_t initial_ptr;
+    size_t alloc_size;
     size_t span_count;
     int full;
     int aligned_blocks;
@@ -100,11 +100,12 @@ struct mpsc_large_cache_t {
 struct arena_t {
     span_list_t spans[SIZE_CLASS_COUNT];
     deferred_span_list_t deferred_partial_spans[SIZE_CLASS_COUNT];
+    #if REPORT_LEAKS
     size_t span_count;
+    #endif
     span_cache_t cache;
     mpsc_large_cache_t large_cache[LARGE_CLASS_COUNT];
     arena_t *next;
-    pid_t owner_tid;
 };
 
 typedef enum map_mode_t {

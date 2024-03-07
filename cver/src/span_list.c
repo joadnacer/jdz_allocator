@@ -1,5 +1,10 @@
 #include "internal.h"
 
+void _jdz_span_list_init(span_list_t *span_list) {
+    span_list->head = NULL;
+    span_list->tail = NULL;
+}
+
 static void _jdz_span_list_assert_not_in_list(span_t *span) {
     assert(span->next == NULL);
     assert(span->prev == NULL);
@@ -113,6 +118,8 @@ span_t* _jdz_span_list_get_empty_spans(span_list_t *span_list) {
             span = span->next;
         }
     }
+
+    return empty_spans_head;
 }
 
 void _jdz_span_list_remove_head(span_list_t *span_list) {

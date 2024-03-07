@@ -19,9 +19,23 @@ void* _jdz_arena_allocate_one_span(arena_t *arena, size_class_t size_class);
 
 void* _jdz_arena_allocate_to_large_span(arena_t *arena, size_t span_count);
 
+void* _jdz_arena_allocate_direct(arena_t *arena, size_t size);
+
+void _jdz_arena_free_small_or_medium(arena_t *arena, arena_t *thread_arena, span_t *span, void *ptr);
+
+void _jdz_arena_cache_span_or_free(arena_t *arena, span_t *span);
+
+void _jdz_arena_cache_large_span_or_free(arena_t *arena, span_t *span);
+
+void _jdz_arena_cache_large_span_or_free_recycling(arena_t *arena, span_t *span);
+
+void _jdz_arena_free_direct(arena_t *arena, span_t *span);
+
 /* -----------------------------------------------------------
   deferred_span_list.c
 ----------------------------------------------------------- */
+
+void _jdz_deferred_span_list_init(deferred_span_list_t *span_list);
 
 void _jdz_deferred_span_list_write(deferred_span_list_t *span_list, span_t *span);
 
@@ -41,6 +55,8 @@ span_t* _jdz_large_cache_try_read(mpsc_large_cache_t *cache);
   span_cache.c
 ----------------------------------------------------------- */
 
+void _jdz_cache_init(span_cache_t *cache);
+
 int _jdz_cache_try_write(span_cache_t *cache, span_t *span);
 
 span_t* _jdz_cache_try_read(span_cache_t *cache);
@@ -48,6 +64,8 @@ span_t* _jdz_cache_try_read(span_cache_t *cache);
 /* -----------------------------------------------------------
   span_list.c
 ----------------------------------------------------------- */
+
+void _jdz_span_list_init(span_list_t *span_list);
 
 void _jdz_span_list_write(span_list_t *span_list, span_t *span);
 
@@ -82,6 +100,8 @@ int _jdz_span_is_empty(span_t *span);
 void _jdz_span_initialise_fresh_span(span_t *span, arena_t *arena, size_class_t size_class);
 
 void _jdz_span_initialise_fresh_large_span(span_t *span, arena_t *arena, size_t span_count);
+
+span_t*_jdz_span_instantiate_mapped_span(size_t span_alloc_ptr, size_t alloc_size, size_t map_count);
 
 span_t* _jdz_span_split_first_spans_return_remaining(span_t *span, size_t span_count);
 

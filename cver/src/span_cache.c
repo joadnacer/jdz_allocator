@@ -1,6 +1,14 @@
 #include "internal.h"
 
+#include "stdio.h"
+
+void _jdz_cache_init(span_cache_t *cache) {
+    cache->count = 0;
+}
+
 int _jdz_cache_try_write(span_cache_t *cache, span_t *span) {
+    assert(cache->count <= CACHE_SIZE);
+
     if (cache->count == CACHE_SIZE) {
         return 0;
     }
@@ -12,6 +20,8 @@ int _jdz_cache_try_write(span_cache_t *cache, span_t *span) {
 }
 
 span_t* _jdz_cache_try_read(span_cache_t *cache) {
+    assert(cache->count <= CACHE_SIZE);
+    
     if (cache->count == 0) {
         return NULL;
     }
