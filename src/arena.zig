@@ -576,7 +576,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         ///
         /// Large Span Free/Cache
         ///
-        pub fn cacheLargeSpanOrFree(self: *Self, span: *Span, recycle_large_spans: bool) void {
+        pub fn cacheLargeSpanOrFree(self: *Self, span: *Span, comptime recycle_large_spans: bool) void {
             const span_count = span.span_count;
 
             if (!self.large_cache[span_count - 2].tryWrite(span)) {
