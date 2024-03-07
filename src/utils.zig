@@ -44,7 +44,7 @@ pub inline fn getSmallSizeClass(len: usize) SizeClass {
 }
 
 pub inline fn getMediumSizeClass(len: usize) SizeClass {
-    assert(len <= medium_max);
+    assert(len > small_max and len <= medium_max);
 
     return medium_size_classes[getMediumSizeIdx(len)];
 }
@@ -62,7 +62,7 @@ pub inline fn getSpan(comptime T: type, ptr: *anyopaque) *T {
 }
 
 pub inline fn isPowerOfTwo(n: u64) bool {
-    return n & (n - 1) == 0;
+    return (n & (n - 1)) == 0;
 }
 
 pub inline fn getSpanCount(len: usize) u32 {

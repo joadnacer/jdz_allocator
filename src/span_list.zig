@@ -34,7 +34,7 @@ pub fn SpanList(comptime config: JdzAllocConfig) type {
         }
 
         pub fn remove(self: *Self, span: *Span) void {
-            assert(span.prev == null or span.prev != span.next);
+            assert(span.prev != span.next);
 
             if (span.prev) |prev| prev.next = span.next else self.head = span.next;
             if (span.next) |next| next.prev = span.prev else self.tail = span.prev;
@@ -70,7 +70,6 @@ pub fn SpanList(comptime config: JdzAllocConfig) type {
             var span = linked_spans;
 
             while (span.next) |next| {
-                span.next = next;
                 next.prev = span;
 
                 span = next;
