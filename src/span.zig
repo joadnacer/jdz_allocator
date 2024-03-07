@@ -1,7 +1,6 @@
 const std = @import("std");
 
 const jdz_allocator = @import("jdz_allocator.zig");
-const arena = @import("arena.zig");
 const span_list = @import("span_list.zig");
 const static_config = @import("static_config.zig");
 const utils = @import("utils.zig");
@@ -64,6 +63,24 @@ pub fn Span(comptime config: JdzAllocConfig) type {
             return self.allocateDeferredOrPtr();
         }
 
+        pub fn allocateFromFreshSpan(self: *Self) [*]u8 {
+            assert(self.isEmpty());
+
+            const res: [*]u8 = @ptrFromInt(self.alloc_ptr);
+            self.alloc_ptr += self.class.block_size;
+            self.block_count = 1;
+
+            return res;
+        }
+
+        pub fn allocateFromLargeSpan(self: *Self) [*]u8 {
+            assert(self.isEmpty());
+
+            self.block_count = 1;
+
+            return @as([*]u8, @ptrFromInt(self.alloc_ptr));
+        }
+
         pub fn popFreeListElement(self: *Self) [*]u8 {
             self.block_count += 1;
 
@@ -71,6 +88,46 @@ pub fn Span(comptime config: JdzAllocConfig) type {
             self.free_list = @as(*usize, @ptrFromInt(block)).*;
 
             return @ptrFromInt(block);
+        }
+
+        pub fn initialiseFreshSpan(self: *Self, arena: *anyopaque, size_class: SizeClass) void {
+            self.* = .{
+                .arena = arena,
+                .initial_ptr = self.initial_ptr,
+                .alloc_ptr = @intFromPtr(self) + span_header_size,
+                .alloc_size = self.alloc_size,
+                .class = size_class,
+                .free_list = free_list_null,
+                .deferred_free_list = free_list_null,
+                .deferred_lock = .{},
+                .full = false,
+                .next = null,
+                .prev = null,
+                .block_count = 0,
+                .deferred_frees = 0,
+                .span_count = 1,
+                .aligned_blocks = false,
+            };
+        }
+
+        pub fn initialiseFreshLargeSpan(self: *Self, arena: *anyopaque, span_count: u32) void {
+            self.* = .{
+                .arena = arena,
+                .initial_ptr = self.initial_ptr,
+                .alloc_ptr = @intFromPtr(self) + span_header_size,
+                .alloc_size = self.alloc_size,
+                .class = undefined,
+                .free_list = free_list_null,
+                .deferred_free_list = free_list_null,
+                .full = false,
+                .deferred_lock = .{},
+                .next = null,
+                .prev = null,
+                .block_count = 0,
+                .deferred_frees = 0,
+                .span_count = span_count,
+                .aligned_blocks = false,
+            };
         }
 
         pub fn isFull(self: *Self) bool {
@@ -87,13 +144,6 @@ pub fn Span(comptime config: JdzAllocConfig) type {
 
         pub fn splitFirstSpanReturnRemaining(self: *Self) *Self {
             return self.splitFirstSpansReturnRemaining(1);
-        }
-
-        pub fn splitFirstSpanReturnRemainingIfExist(self: *Self) *Self {
-            return if (self.span_count > 1)
-                self.splitFirstSpansReturnRemaining(1)
-            else
-                self;
         }
 
         pub fn splitFirstSpansReturnRemaining(self: *Self, span_count: u32) *Self {

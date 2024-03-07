@@ -160,43 +160,13 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         fn allocateFromCacheOrNew(self: *Self, size_class: SizeClass) ?[*]u8 {
             const span = self.getSpanFromCacheOrNew() orelse return null;
 
-            self.initialiseFreshSpan(span, size_class);
+            span.initialiseFreshSpan(self, size_class);
 
-            const res = allocateFromFreshSpan(span);
+            const res = span.allocateFromFreshSpan();
 
             self.spans[size_class.class_idx].write(span);
 
             return res;
-        }
-
-        fn allocateFromFreshSpan(span: *Span) [*]u8 {
-            assert(span.isEmpty());
-
-            const res: [*]u8 = @ptrFromInt(span.alloc_ptr);
-            span.alloc_ptr += span.class.block_size;
-            span.block_count = 1;
-
-            return res;
-        }
-
-        fn initialiseFreshSpan(self: *Self, span: *Span, size_class: SizeClass) void {
-            span.* = .{
-                .arena = self,
-                .initial_ptr = span.initial_ptr,
-                .alloc_ptr = @intFromPtr(span) + span_header_size,
-                .alloc_size = span.alloc_size,
-                .class = size_class,
-                .free_list = free_list_null,
-                .deferred_free_list = free_list_null,
-                .deferred_lock = .{},
-                .full = false,
-                .next = null,
-                .prev = null,
-                .block_count = 0,
-                .deferred_frees = 0,
-                .span_count = 1,
-                .aligned_blocks = false,
-            };
         }
 
         const getSpanFromCacheOrNew = if (config.split_large_spans_to_one)
@@ -269,16 +239,16 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         pub fn allocateOneSpan(self: *Self, size_class: SizeClass) ?[*]u8 {
             const span = self.getSpanFromCacheOrNew() orelse return null;
 
-            self.initialiseFreshSpan(span, size_class);
+            span.initialiseFreshSpan(self, size_class);
 
-            return allocateFromFreshSpan(span);
+            return span.allocateFromFreshSpan();
         }
 
         pub fn allocateToLargeSpan(self: *Self, span_count: u32) ?[*]u8 {
             if (self.getLargeSpan(span_count)) |span| {
-                self.initialiseFreshLargeSpan(span, span.span_count);
+                span.initialiseFreshLargeSpan(self, span.span_count);
 
-                return allocateFromLargeSpan(span);
+                return span.allocateFromLargeSpan();
             }
 
             return self.allocateFromNewLargeSpan(span_count);
@@ -342,38 +312,9 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         fn allocateFromNewLargeSpan(self: *Self, span_count: u32) ?[*]u8 {
             const span = self.mapSpan(MapMode.large, span_count) orelse return null;
 
-            self.initialiseFreshLargeSpan(span, span_count);
+            span.initialiseFreshLargeSpan(self, span_count);
 
-            return allocateFromLargeSpan(span);
-        }
-
-        fn allocateFromLargeSpan(span: *Span) [*]u8 {
-            assert(span.isEmpty());
-
-            const res: [*]u8 = @ptrFromInt(span.alloc_ptr);
-            span.block_count = 1;
-
-            return res;
-        }
-
-        fn initialiseFreshLargeSpan(self: *Self, span: *Span, span_count: u32) void {
-            span.* = .{
-                .arena = self,
-                .initial_ptr = span.initial_ptr,
-                .alloc_ptr = @intFromPtr(span) + span_header_size,
-                .alloc_size = span.alloc_size,
-                .class = undefined,
-                .free_list = free_list_null,
-                .deferred_free_list = free_list_null,
-                .full = false,
-                .deferred_lock = .{},
-                .next = null,
-                .prev = null,
-                .block_count = 0,
-                .deferred_frees = 0,
-                .span_count = span_count,
-                .aligned_blocks = false,
-            };
+            return span.allocateFromLargeSpan();
         }
 
         ///
