@@ -149,12 +149,9 @@ pub fn JdzAllocator(comptime config: JdzAllocConfig) type {
             if (size <= medium_max) {
                 const arena: *Arena = @ptrCast(@alignCast(span.arena));
                 arena.freeSmallOrMedium(span, buf);
-            } else if (size <= span_max) {
-                const arena: *Arena = @ptrCast(@alignCast(span.arena));
-                arena.cacheSpanOrFree(span);
             } else if (size <= large_max) {
                 const arena: *Arena = @ptrCast(@alignCast(span.arena));
-                arena.cacheLargeSpanOrFree(span, config.recycle_large_spans);
+                arena.cacheLargeSpanOrFree(span);
             } else {
                 _ = self.huge_count.fetchSub(1, .Monotonic);
                 self.backing_allocator.rawFree(buf, log2_align, ret_addr);
@@ -368,7 +365,7 @@ test "large object - grow" {
 
     const allocator = jdz_allocator.allocator();
 
-    var slice1 = try allocator.alloc(u8, 8192 - 20);
+    var slice1 = try allocator.alloc(u8, 8192 - 10);
     defer allocator.free(slice1);
 
     const old = slice1;

@@ -172,6 +172,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
 
         fn getSpanFromCacheOrNewSplitting(self: *Self) ?*Span {
             return self.cache.tryRead() orelse
+                self.getSpanFromOneSpanLargeCache() orelse
                 self.getEmptySpansFromLists() orelse
                 self.getSpansFromMapCache() orelse
                 self.getSpansFromLargeCache() orelse
@@ -180,9 +181,14 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
 
         fn getSpanFromCacheOrNewNonSplitting(self: *Self) ?*Span {
             return self.cache.tryRead() orelse
+                self.getSpanFromOneSpanLargeCache() orelse
                 self.getEmptySpansFromLists() orelse
                 self.getSpansFromMapCache() orelse
                 self.mapSpan(MapMode.multiple, config.span_alloc_count);
+        }
+
+        inline fn getSpanFromOneSpanLargeCache(self: *Self) ?*Span {
+            return self.large_cache[0].tryRead();
         }
 
         fn getEmptySpansFromLists(self: *Self) ?*Span {
@@ -275,7 +281,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
 
         fn getFromLargeCache(self: *Self, span_count: u32, max_span_count: u32) ?*Span {
             for (span_count..max_span_count + 1) |count| {
-                const cached = self.large_cache[count - 2].tryRead() orelse continue;
+                const cached = self.large_cache[count - 1].tryRead() orelse continue;
 
                 assert(cached.span_count == count);
 
@@ -287,14 +293,14 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
 
         fn splitLargerCachedSpan(self: *Self, desired_count: u32, from_count: u32) ?*Span {
             for (from_count..large_class_count + 1) |count| {
-                const cached = self.large_cache[count - 2].tryRead() orelse continue;
+                const cached = self.large_cache[count - 1].tryRead() orelse continue;
 
                 assert(cached.span_count == count);
 
                 const remaining = cached.splitFirstSpansReturnRemaining(desired_count);
 
                 if (remaining.span_count > 1)
-                    self.cacheLargeSpanOrFree(remaining, config.recycle_large_spans)
+                    self.cacheLargeSpanOrFree(remaining)
                 else
                     self.cacheSpanOrFree(remaining);
 
@@ -446,7 +452,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             if (span.span_count == 1) {
                 self.cacheSpanOrFree(span);
             } else if (!self.map_cache[span.span_count].tryWrite(span)) {
-                self.cacheLargeSpanOrFree(span, false);
+                self.cacheLargeSpanOrFree(span);
             }
         }
 
@@ -563,18 +569,10 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         ///
         /// Large Span Free/Cache
         ///
-        pub fn cacheLargeSpanOrFree(self: *Self, span: *Span, comptime recycle_large_spans: bool) void {
+        pub fn cacheLargeSpanOrFree(self: *Self, span: *Span) void {
             const span_count = span.span_count;
 
-            if (!self.large_cache[span_count - 2].tryWrite(span)) {
-                if (recycle_large_spans) {
-                    if (!self.cache.tryWrite(span)) {
-                        self.freeSpan(span);
-                    }
-
-                    return;
-                }
-
+            if (!self.large_cache[span_count - 1].tryWrite(span)) {
                 self.freeSpan(span);
             }
         }

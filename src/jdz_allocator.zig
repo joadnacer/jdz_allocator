@@ -35,9 +35,6 @@ pub const JdzAllocConfig = struct {
     /// increases cache hits and memory usage, but does hurt performance
     large_span_overhead_mul: f64 = 0.5,
 
-    /// cache large spans as normal spans if self.large_cache_upper_limit is hit
-    recycle_large_spans: bool = true,
-
     /// if cached large spans should be split to accomodate small or medium allocations
     /// improves memory usage but hurts performance
     split_large_spans_to_one: bool = true,
