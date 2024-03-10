@@ -113,7 +113,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         ///
         /// Small Or Medium Allocations
         ///
-        pub fn allocateToSpan(self: *Self, size_class: SizeClass) ?[*]u8 {
+        pub inline fn allocateToSpan(self: *Self, size_class: SizeClass) ?[*]u8 {
             assert(size_class.class_idx != span_class.class_idx);
 
             const opt_span = self.spans[size_class.class_idx].tryRead();
@@ -237,7 +237,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         ///
         /// Large Span Allocations
         ///
-        pub fn allocateOneSpan(self: *Self, size_class: SizeClass) ?[*]u8 {
+        pub inline fn allocateOneSpan(self: *Self, size_class: SizeClass) ?[*]u8 {
             const span = self.getSpanFromCacheOrNew() orelse return null;
 
             span.initialiseFreshSpan(self, size_class);
@@ -245,7 +245,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             return span.allocateFromFreshSpan();
         }
 
-        pub fn allocateToLargeSpan(self: *Self, span_count: u32) ?[*]u8 {
+        pub inline fn allocateToLargeSpan(self: *Self, span_count: u32) ?[*]u8 {
             if (self.getLargeSpan(span_count)) |span| {
                 span.initialiseFreshLargeSpan(self, span.span_count);
 
@@ -255,7 +255,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             return self.allocateFromNewLargeSpan(span_count);
         }
 
-        fn getLargeSpan(self: *Self, span_count: u32) ?*Span {
+        inline fn getLargeSpan(self: *Self, span_count: u32) ?*Span {
             const span_count_float: f32 = @floatFromInt(span_count);
             const span_overhead: u32 = @intFromFloat(span_count_float * config.large_span_overhead_mul);
             const max_span_count = @min(large_class_count, span_count + span_overhead);
@@ -471,7 +471,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         else
             freeSmallOrMediumShared;
 
-        fn freeSmallOrMediumThreadLocal(self: *Self, span: *Span, buf: []u8) void {
+        inline fn freeSmallOrMediumThreadLocal(self: *Self, span: *Span, buf: []u8) void {
             if (self == GlobalArenaHandler.getThreadArena()) {
                 span.pushFreeList(buf);
 
@@ -483,7 +483,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             }
         }
 
-        fn freeSmallOrMediumShared(self: *Self, span: *Span, buf: []u8) void {
+        inline fn freeSmallOrMediumShared(self: *Self, span: *Span, buf: []u8) void {
             const tid = getThreadId();
 
             if (self.thread_id == tid and self.tryAcquire()) {
@@ -499,13 +499,13 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             }
         }
 
-        fn handleSpanNoLongerFull(self: *Self, span: *Span) void {
+        inline fn handleSpanNoLongerFull(self: *Self, span: *Span) void {
             if (span.full and @atomicRmw(bool, &span.full, .Xchg, false, .Monotonic)) {
                 self.spans[span.class.class_idx].write(span);
             }
         }
 
-        fn handleSpanNoLongerFullDeferred(self: *Self, span: *Span) void {
+        inline fn handleSpanNoLongerFullDeferred(self: *Self, span: *Span) void {
             if (span.full and @atomicRmw(bool, &span.full, .Xchg, false, .Monotonic)) {
                 self.deferred_partial_spans[span.class.class_idx].write(span);
             }
@@ -569,7 +569,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         ///
         /// Large Span Free/Cache
         ///
-        pub fn cacheLargeSpanOrFree(self: *Self, span: *Span) void {
+        pub inline fn cacheLargeSpanOrFree(self: *Self, span: *Span) void {
             const span_count = span.span_count;
 
             if (!self.large_cache[span_count - 1].tryWrite(span)) {

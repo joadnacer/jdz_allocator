@@ -29,7 +29,7 @@ pub fn SpanList(comptime config: JdzAllocConfig) type {
             }
         }
 
-        pub fn tryRead(self: *Self) ?*Span {
+        pub inline fn tryRead(self: *Self) ?*Span {
             return self.head;
         }
 

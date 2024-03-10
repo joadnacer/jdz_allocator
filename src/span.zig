@@ -41,7 +41,7 @@ pub fn Span(comptime config: JdzAllocConfig) type {
         span_count: u32,
         aligned_blocks: bool,
 
-        pub fn pushFreeList(self: *Self, buf: []u8) void {
+        pub inline fn pushFreeList(self: *Self, buf: []u8) void {
             const ptr = self.getBlockPtr(buf);
 
             self.pushFreeListElement(ptr);
@@ -49,7 +49,7 @@ pub fn Span(comptime config: JdzAllocConfig) type {
             self.block_count -= 1;
         }
 
-        pub fn pushDeferredFreeList(self: *Self, buf: []u8) void {
+        pub inline fn pushDeferredFreeList(self: *Self, buf: []u8) void {
             const ptr = self.getBlockPtr(buf);
 
             self.pushDeferredFreeListElement(ptr);
@@ -81,7 +81,7 @@ pub fn Span(comptime config: JdzAllocConfig) type {
             return @as([*]u8, @ptrFromInt(self.alloc_ptr));
         }
 
-        pub fn popFreeListElement(self: *Self) [*]u8 {
+        pub inline fn popFreeListElement(self: *Self) [*]u8 {
             self.block_count += 1;
 
             const block = self.free_list;

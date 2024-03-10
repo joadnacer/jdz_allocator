@@ -37,14 +37,14 @@ pub fn SharedArenaHandler(comptime config: JdzAllocConfig) type {
             return spans_leaked;
         }
 
-        pub fn getArena(self: *Self) ?*Arena {
+        pub inline fn getArena(self: *Self) ?*Arena {
             const tid = getThreadId();
 
             return self.findOwnedThreadArena(tid) orelse
                 self.claimOrCreateArena(tid);
         }
 
-        fn findOwnedThreadArena(self: *Self, tid: std.Thread.Id) ?*Arena {
+        inline fn findOwnedThreadArena(self: *Self, tid: std.Thread.Id) ?*Arena {
             var opt_arena = self.arena_list;
 
             while (opt_arena) |list_arena| {
@@ -58,7 +58,7 @@ pub fn SharedArenaHandler(comptime config: JdzAllocConfig) type {
             return null;
         }
 
-        fn claimOrCreateArena(self: *Self, tid: std.Thread.Id) ?*Arena {
+        inline fn claimOrCreateArena(self: *Self, tid: std.Thread.Id) ?*Arena {
             var opt_arena = self.arena_list;
 
             while (opt_arena) |arena| {
@@ -102,7 +102,7 @@ pub fn SharedArenaHandler(comptime config: JdzAllocConfig) type {
             }
         }
 
-        fn acquireArena(arena: *Arena, tid: std.Thread.Id) ?*Arena {
+        inline fn acquireArena(arena: *Arena, tid: std.Thread.Id) ?*Arena {
             if (arena.tryAcquire()) {
                 arena.thread_id = tid;
 

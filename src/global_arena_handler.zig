@@ -45,17 +45,17 @@ pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
             addArenaToList(arena);
         }
 
-        pub fn getArena() ?*Arena {
+        pub inline fn getArena() ?*Arena {
             return thread_arena orelse
                 getArenaFromList() orelse
                 createArena();
         }
 
-        pub fn getThreadArena() ?*Arena {
+        pub inline fn getThreadArena() ?*Arena {
             return thread_arena;
         }
 
-        inline fn getArenaFromList() ?*Arena {
+        fn getArenaFromList() ?*Arena {
             mutex.lock();
             defer mutex.unlock();
 
