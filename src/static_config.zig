@@ -20,6 +20,7 @@ pub const span_effective_size = span_size - span_header_size;
 pub const span_max = span_effective_size;
 
 pub const page_size = std.mem.page_size;
+pub const mod_page_size = page_size - 1;
 pub const page_alignment = log2(page_size);
 
 pub const span_alignment = log2(span_size);

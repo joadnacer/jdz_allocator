@@ -242,7 +242,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
 
             span.initialiseFreshSpan(self, size_class);
 
-            return span.allocateFromFreshSpan();
+            return @ptrFromInt(span.alloc_ptr);
         }
 
         pub inline fn allocateToLargeSpan(self: *Self, span_count: u32) ?[*]u8 {

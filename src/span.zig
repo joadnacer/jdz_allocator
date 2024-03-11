@@ -15,6 +15,7 @@ const assert = std.debug.assert;
 const span_size = static_config.span_size;
 const span_header_size = static_config.span_header_size;
 const page_size = static_config.page_size;
+const mod_page_size = static_config.mod_page_size;
 const free_list_null = static_config.free_list_null;
 
 const deferred_pending_free: usize = @bitCast(@as(isize, -1));
@@ -66,9 +67,18 @@ pub fn Span(comptime config: JdzAllocConfig) type {
         pub fn allocateFromFreshSpan(self: *Self) [*]u8 {
             assert(self.isEmpty());
 
+            return self.allocateFromAllocPtr();
+        }
+
+        pub fn allocateFromAllocPtr(self: *Self) [*]u8 {
+            assert(self.alloc_ptr <= @intFromPtr(self) + span_size - self.class.block_size);
+
+            self.block_count += 1;
+
             const res: [*]u8 = @ptrFromInt(self.alloc_ptr);
             self.alloc_ptr += self.class.block_size;
-            self.block_count = 1;
+
+            self.allocatePage();
 
             return res;
         }
@@ -169,17 +179,6 @@ pub fn Span(comptime config: JdzAllocConfig) type {
             }
         }
 
-        inline fn allocateFromAllocPtr(self: *Self) [*]u8 {
-            assert(self.alloc_ptr <= @intFromPtr(self) + span_size - self.class.block_size);
-
-            self.block_count += 1;
-
-            const res: [*]u8 = @ptrFromInt(self.alloc_ptr);
-            self.alloc_ptr += self.class.block_size;
-
-            return res;
-        }
-
         inline fn getBlockPtr(self: *Self, buf: []u8) [*]u8 {
             if (!self.aligned_blocks) {
                 return buf.ptr;
@@ -189,6 +188,30 @@ pub fn Span(comptime config: JdzAllocConfig) type {
 
                 return buf.ptr - block_offset % self.class.block_size;
             }
+        }
+
+        inline fn allocatePage(self: *Self) void {
+            const next_page = self.alloc_ptr + page_size - (self.alloc_ptr & mod_page_size);
+            const end_span = @intFromPtr(self) + span_size;
+            const target = @min(end_span, next_page);
+            const bytes_to_fill = target - self.alloc_ptr;
+            const blocks_to_add = bytes_to_fill / self.class.block_size;
+
+            if (blocks_to_add != 0) {
+                self.free_list = self.alloc_ptr;
+
+                for (0..blocks_to_add) |_| {
+                    self.pushFreeListElementForwardPointing();
+                }
+
+                @as(*usize, @ptrFromInt(self.alloc_ptr - self.class.block_size)).* = free_list_null;
+            }
+        }
+
+        inline fn pushFreeListElementForwardPointing(self: *Self) void {
+            const next_block = self.alloc_ptr + self.class.block_size;
+            @as(*usize, @ptrFromInt(self.alloc_ptr)).* = next_block;
+            self.alloc_ptr = next_block;
         }
 
         inline fn pushFreeListElement(self: *Self, ptr: [*]u8) void {
