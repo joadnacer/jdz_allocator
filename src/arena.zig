@@ -42,10 +42,11 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         writer_lock: Lock align(cache_line),
         thread_id: ?std.Thread.Id align(cache_line),
         next: ?*Self align(cache_line),
+        is_alloc_master: bool,
 
         const Self = @This();
 
-        pub fn init(writer_lock: Lock, thread_id: std.Thread.Id) Self {
+        pub fn init(writer_lock: Lock, thread_id: ?std.Thread.Id) Self {
             var large_cache: [large_class_count]ArenaLargeCache = undefined;
             var map_cache: [large_class_count]ArenaMapCache = undefined;
 
@@ -68,6 +69,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
                 .writer_lock = writer_lock,
                 .thread_id = thread_id,
                 .next = null,
+                .is_alloc_master = false,
             };
         }
 
@@ -94,6 +96,10 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             }
 
             return self.span_count;
+        }
+
+        pub fn makeMaster(self: *Self) void {
+            self.is_alloc_master = true;
         }
 
         pub inline fn tryAcquire(self: *Self) bool {

@@ -43,6 +43,10 @@ pub const JdzAllocConfig = struct {
     /// improves memory usage but hurts performance
     split_large_spans_to_large: bool = true,
 
+    /// shared allocator batch arena instantiation amount
+    /// prevents allocator-induced false sharing if greater than total number of allocating threads
+    shared_arena_batch_size: u32 = 8,
+
     /// if leaks should be reported
     report_leaks: bool = builtin.mode == .Debug,
 

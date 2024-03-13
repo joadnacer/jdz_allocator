@@ -1,26 +1,38 @@
 const std = @import("std");
 const span_arena = @import("arena.zig");
 const jdz_allocator = @import("jdz_allocator.zig");
+const utils = @import("utils.zig");
 
 const JdzAllocConfig = jdz_allocator.JdzAllocConfig;
+
+const assert = std.debug.assert;
 
 threadlocal var cached_thread_id: ?std.Thread.Id = null;
 
 pub fn SharedArenaHandler(comptime config: JdzAllocConfig) type {
     const Arena = span_arena.Arena(config, false);
 
+    const Mutex = utils.getMutexType(config);
+
     return struct {
         arena_list: ?*Arena,
+        mutex: Mutex,
+        arena_batch: u32,
 
         const Self = @This();
 
         pub fn init() Self {
             return .{
                 .arena_list = null,
+                .mutex = .{},
+                .arena_batch = 0,
             };
         }
 
         pub fn deinit(self: *Self) usize {
+            self.mutex.lock();
+            defer self.mutex.unlock();
+
             var spans_leaked: usize = 0;
             var opt_arena = self.arena_list;
 
@@ -29,7 +41,15 @@ pub fn SharedArenaHandler(comptime config: JdzAllocConfig) type {
 
                 spans_leaked += arena.deinit();
 
-                config.backing_allocator.destroy(arena);
+                opt_arena = next;
+            }
+
+            while (opt_arena) |arena| {
+                const next = arena.next;
+
+                if (arena.is_alloc_master) {
+                    config.backing_allocator.destroy(arena);
+                }
 
                 opt_arena = next;
             }
@@ -48,8 +68,8 @@ pub fn SharedArenaHandler(comptime config: JdzAllocConfig) type {
             var opt_arena = self.arena_list;
 
             while (opt_arena) |list_arena| {
-                if (list_arena.thread_id == tid) {
-                    return acquireArena(list_arena, tid) orelse break;
+                if (list_arena.thread_id == tid or list_arena.thread_id == null) {
+                    return acquireArena(list_arena, tid) orelse continue;
                 }
 
                 opt_arena = list_arena.next;
@@ -69,37 +89,59 @@ pub fn SharedArenaHandler(comptime config: JdzAllocConfig) type {
                 };
             }
 
+            return self.tryCreateArena();
+        }
+
+        fn tryCreateArena(self: *Self) ?*Arena {
+            const arena_batch = self.arena_batch;
+
+            self.mutex.lock();
+            defer self.mutex.unlock();
+
+            if (arena_batch != self.arena_batch) {
+                return self.getArena();
+            }
+
             return self.createArena();
         }
 
         fn createArena(self: *Self) ?*Arena {
-            const new_arena = config.backing_allocator.create(Arena) catch return null;
+            var new_arenas = config.backing_allocator.alloc(Arena, config.shared_arena_batch_size) catch {
+                return null;
+            };
 
-            new_arena.* = Arena.init(.locked, getThreadId());
+            self.arena_batch += 1;
 
-            self.addArenaToList(new_arena);
+            for (new_arenas) |*new_arena| {
+                new_arena.* = Arena.init(.unlocked, null);
+            }
 
-            return new_arena;
+            new_arenas[0].makeMaster();
+            const acquired = acquireArena(&new_arenas[0], getThreadId());
+
+            assert(acquired != null);
+
+            for (new_arenas) |*new_arena| {
+                self.addArenaToList(new_arena);
+            }
+
+            return acquired;
         }
 
         fn addArenaToList(self: *Self, new_arena: *Arena) void {
-            while (self.arena_list == null) {
-                if (@cmpxchgWeak(?*Arena, &self.arena_list, null, new_arena, .Monotonic, .Monotonic) == null) {
-                    return;
-                }
+            if (self.arena_list == null) {
+                self.arena_list = new_arena;
+
+                return;
             }
 
             var arena = self.arena_list.?;
 
-            while (true) {
-                while (arena.next) |next| {
-                    arena = next;
-                }
-
-                if (@cmpxchgWeak(?*Arena, &arena.next, null, new_arena, .Monotonic, .Monotonic) == null) {
-                    return;
-                }
+            while (arena.next) |next| {
+                arena = next;
             }
+
+            arena.next = new_arena;
         }
 
         inline fn acquireArena(arena: *Arena, tid: std.Thread.Id) ?*Arena {
