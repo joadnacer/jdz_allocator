@@ -27,9 +27,11 @@ pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
             while (opt_arena) |arena| {
                 const next = arena.next;
 
-                spans_leaked += arena.deinit();
+                if (arena != &preinit_arena) {
+                    spans_leaked += arena.deinit();
 
-                config.backing_allocator.destroy(arena);
+                    config.backing_allocator.destroy(arena);
+                }
 
                 opt_arena = next;
             }
