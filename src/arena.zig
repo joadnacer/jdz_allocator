@@ -1,15 +1,15 @@
 const std = @import("std");
-const span_list = @import("span_list.zig");
-const deferred_span_list = @import("deferred_span_list.zig");
 const span_cache = @import("span_cache.zig");
 const stack = @import("bounded_stack.zig");
 const jdz_allocator = @import("jdz_allocator.zig");
 const mpsc_queue = @import("bounded_mpsc_queue.zig");
-const span_file = @import("span.zig");
 const global_arena_handler = @import("global_arena_handler.zig");
 const static_config = @import("static_config.zig");
 const utils = @import("utils.zig");
 
+const SpanList = @import("SpanList.zig");
+const Span = @import("Span.zig");
+const DeferredSpanList = @import("DeferredSpanList.zig");
 const JdzAllocConfig = jdz_allocator.JdzAllocConfig;
 const SizeClass = static_config.SizeClass;
 const Atomic = std.atomic.Atomic;
@@ -21,13 +21,7 @@ const cache_line = std.atomic.cache_line;
 threadlocal var cached_thread_id: ?std.Thread.Id = null;
 
 pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) type {
-    const Span = span_file.Span(config);
-
-    const SpanList = span_list.SpanList(config);
-
-    const DeferredSpanList = deferred_span_list.DeferredSpanList(config);
-
-    const ArenaSpanCache = span_cache.SpanCache(config);
+    const ArenaSpanCache = span_cache.SpanCache(config.cache_limit);
 
     const Lock = utils.getArenaLockType(config);
 
@@ -43,7 +37,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         deferred_partial_spans: [size_class_count]DeferredSpanList,
         span_count: usize,
         cache: ArenaSpanCache,
-        large_cache: [large_class_count - 1]ArenaLargeCache,
+        large_cache: [large_class_count]ArenaLargeCache,
         map_cache: [large_class_count]ArenaMapCache,
         writer_lock: Lock align(cache_line),
         thread_id: ?std.Thread.Id align(cache_line),
@@ -52,7 +46,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         const Self = @This();
 
         pub fn init(writer_lock: Lock, thread_id: std.Thread.Id) Self {
-            var large_cache: [large_class_count - 1]ArenaLargeCache = undefined;
+            var large_cache: [large_class_count]ArenaLargeCache = undefined;
             var map_cache: [large_class_count]ArenaMapCache = undefined;
 
             for (&map_cache) |*cache| {
@@ -217,7 +211,9 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             var span_count: usize = large_class_count;
 
             while (span_count >= 2) : (span_count -= 1) {
-                const large_span = self.large_cache[span_count - 2].tryRead() orelse continue;
+                const large_span = self.large_cache[span_count - 1].tryRead() orelse continue;
+
+                assert(large_span.span_count == span_count);
 
                 self.getSpansFromLargeSpan(large_span);
 
@@ -280,7 +276,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         }
 
         fn getFromLargeCache(self: *Self, span_count: u32, max_span_count: u32) ?*Span {
-            for (span_count..max_span_count + 1) |count| {
+            for (span_count..max_span_count) |count| {
                 const cached = self.large_cache[count - 1].tryRead() orelse continue;
 
                 assert(cached.span_count == count);
@@ -292,7 +288,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         }
 
         fn splitLargerCachedSpan(self: *Self, desired_count: u32, from_count: u32) ?*Span {
-            for (from_count..large_class_count + 1) |count| {
+            for (from_count..large_class_count) |count| {
                 const cached = self.large_cache[count - 1].tryRead() orelse continue;
 
                 assert(cached.span_count == count);

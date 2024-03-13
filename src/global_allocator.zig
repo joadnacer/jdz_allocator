@@ -4,10 +4,10 @@ const builtin = @import("builtin");
 const jdz = @import("jdz_allocator.zig");
 const global_handler = @import("global_arena_handler.zig");
 const span_arena = @import("arena.zig");
-const span_file = @import("span.zig");
 const static_config = @import("static_config.zig");
 const utils = @import("utils.zig");
 
+const Span = @import("Span.zig");
 const JdzAllocConfig = jdz.JdzAllocConfig;
 const Atomic = std.atomic.Atomic;
 
@@ -16,8 +16,6 @@ const testing = std.testing;
 const assert = std.debug.assert;
 
 pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
-    const Span = span_file.Span(config);
-
     const Arena = span_arena.Arena(config, true);
 
     const ArenaHandler = global_handler.GlobalArenaHandler(config);
@@ -110,7 +108,7 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
 
                 if (@intFromPtr(ptr) & align_mask != 0) {
                     ptr = @ptrFromInt((@intFromPtr(ptr) & ~align_mask) + alignment);
-                    const span = utils.getSpan(Span, ptr);
+                    const span = utils.getSpan(ptr);
 
                     span.aligned_blocks = true;
                 }
@@ -130,7 +128,7 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
             const alignment = @as(usize, 1) << @intCast(log2_align);
             const aligned = (@intFromPtr(buf.ptr) & (alignment - 1)) == 0;
 
-            const span = utils.getSpan(Span, buf.ptr);
+            const span = utils.getSpan(buf.ptr);
 
             if (buf.len <= span_max) return new_len <= span.class.block_size and aligned;
             if (buf.len <= large_max) return new_len <= span.alloc_size - (span.alloc_ptr - span.initial_ptr) and aligned;
@@ -148,7 +146,7 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
 
             const alignment = @as(usize, 1) << @intCast(log2_align);
             const size = @max(alignment, buf.len);
-            const span = utils.getSpan(Span, buf.ptr);
+            const span = utils.getSpan(buf.ptr);
 
             if (size <= medium_max) {
                 const arena: *Arena = @ptrCast(@alignCast(span.arena));
@@ -192,7 +190,7 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
 
         /// for mimalloc-bench, does not work for huge allocs
         pub fn usableSize(ptr: *anyopaque) usize {
-            const span = utils.getSpan(Span, ptr);
+            const span = utils.getSpan(ptr);
 
             if (span.span_count == 1) {
                 return span.class.block_size;

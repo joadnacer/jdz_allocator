@@ -7,6 +7,7 @@ const lock = @import("lock.zig");
 const JdzAllocConfig = jdz_allocator.JdzAllocConfig;
 const SizeClass = static_config.SizeClass;
 
+const Span = @import("Span.zig");
 const Atomic = std.atomic.Atomic;
 const Ordering = std.atomic.Ordering;
 const assert = std.debug.assert;
@@ -57,7 +58,7 @@ pub inline fn getMediumSizeIdx(len: usize) usize {
     return (len - small_max - 1) >> medium_granularity_shift;
 }
 
-pub inline fn getSpan(comptime T: type, ptr: *anyopaque) *T {
+pub inline fn getSpan(ptr: *anyopaque) *Span {
     return @ptrFromInt(@intFromPtr(ptr) & span_upper_mask);
 }
 
