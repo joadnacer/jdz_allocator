@@ -5,6 +5,7 @@ const jdz = @import("jdz_allocator.zig");
 const global_handler = @import("global_arena_handler.zig");
 const span_arena = @import("arena.zig");
 const static_config = @import("static_config.zig");
+const bounded_mpmc_queue = @import("bounded_mpmc_queue.zig");
 const utils = @import("utils.zig");
 
 const Span = @import("Span.zig");
@@ -19,6 +20,10 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
     const Arena = span_arena.Arena(config, true);
 
     const ArenaHandler = global_handler.GlobalArenaHandler(config);
+
+    const GlobalSpanCache = bounded_mpmc_queue.BoundedMpmcQueue(*Span, config.cache_limit * config.global_cache_multiplier);
+
+    const GlobalLargeCache = bounded_mpmc_queue.BoundedMpmcQueue(*Span, config.large_cache_limit * config.global_cache_multiplier);
 
     assert(config.span_alloc_count >= 1);
 
@@ -39,33 +44,23 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
     assert(medium_granularity <= small_max);
     assert(span_header_size % small_granularity == 0);
 
-    // These asserts must be true for MPSC queue to work
+    // These asserts must be true for MPSC/MPMC queues to work
+    assert(config.cache_limit > 1);
+    assert(utils.isPowerOfTwo(config.cache_limit));
     assert(config.large_cache_limit > 1);
     assert(utils.isPowerOfTwo(config.large_cache_limit));
 
+    assert(config.global_cache_multiplier >= 1);
+
     return struct {
+        pub var cache: GlobalSpanCache = GlobalSpanCache.init();
+        pub var large_cache: [large_class_count]GlobalLargeCache = .{GlobalLargeCache.init()} ** large_class_count;
+
         var huge_count: Atomic(usize) = Atomic(usize).init(0);
         var backing_allocator = config.backing_allocator;
 
-        var initialised = true;
-
         pub fn deinit() void {
-            initialised = false;
-
-            const spans_leaked = ArenaHandler.deinit();
-
-            if (config.report_leaks) {
-                const log = std.log.scoped(.jdz_allocator);
-
-                if (spans_leaked != 0) {
-                    log.warn("{} leaked 64KiB spans", .{spans_leaked});
-                }
-
-                const leaked_huge = huge_count.load(.Monotonic);
-                if (leaked_huge != 0) {
-                    log.warn("{} leaked huge allocations", .{leaked_huge});
-                }
-            }
+            ArenaHandler.deinit();
         }
 
         pub fn deinitThread() void {
@@ -85,8 +80,6 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
 
         fn alloc(ctx: *anyopaque, len: usize, log2_align: u8, ret_addr: usize) ?[*]u8 {
             _ = ctx;
-
-            assert(initialised);
 
             if (log2_align <= small_granularity_shift) {
                 return allocate(len, log2_align, ret_addr);
@@ -123,8 +116,6 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
             _ = ret_addr;
             _ = ctx;
 
-            assert(initialised);
-
             const alignment = @as(usize, 1) << @intCast(log2_align);
             const aligned = (@intFromPtr(buf.ptr) & (alignment - 1)) == 0;
 
@@ -141,8 +132,6 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
 
         fn free(ctx: *anyopaque, buf: []u8, log2_align: u8, ret_addr: usize) void {
             _ = ctx;
-
-            assert(initialised);
 
             const alignment = @as(usize, 1) << @intCast(log2_align);
             const size = @max(alignment, buf.len);
@@ -198,6 +187,24 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
 
             return span.alloc_size - (span.alloc_ptr - span.initial_ptr);
         }
+
+        pub fn cacheSpan(span: *Span) bool {
+            assert(span.span_count == 1);
+
+            return cache.tryWrite(span);
+        }
+
+        pub fn cacheLargeSpan(span: *Span) bool {
+            return large_cache[span.span_count - 1].tryWrite(span);
+        }
+
+        pub fn getCachedSpan() ?*Span {
+            return cache.tryRead();
+        }
+
+        pub fn getCachedLargeSpan(cache_idx: usize) ?*Span {
+            return large_cache[cache_idx].tryRead();
+        }
     };
 }
 
@@ -219,6 +226,7 @@ const span_max = static_config.span_max;
 const span_class = static_config.span_class;
 
 const large_max = static_config.large_max;
+const large_class_count = static_config.large_class_count;
 
 const page_size = static_config.page_size;
 const page_alignment = static_config.page_alignment;
@@ -629,8 +637,54 @@ test "page size alignment large alloc" {
     try std.testing.expect(@intFromPtr(slice) % std.math.pow(u16, 2, page_alignment) == 0);
 }
 
-test "deinit" {
-    const jdz_allocator = JdzGlobalAllocator(.{});
+test "empty span gets cached to global and reused" {
+    const jdz_allocator = JdzGlobalAllocator(.{ .span_alloc_count = 1 });
+    defer jdz_allocator.deinit();
+
+    const allocator = jdz_allocator.allocator();
+
+    const alloc_one = try allocator.alloc(u8, 1);
+
+    const span_one = utils.getSpan(alloc_one.ptr);
+
+    allocator.free(alloc_one);
+
     jdz_allocator.deinitThread();
-    jdz_allocator.deinit();
+
+    const span_two = jdz_allocator.cache.buffer[0].data;
+
+    try testing.expect(span_one == span_two);
+
+    const alloc_two = try allocator.alloc(u8, 1);
+
+    try testing.expect(alloc_one.ptr == alloc_two.ptr);
+
+    allocator.free(alloc_two);
+}
+
+test "empty large span gets cached to global and reused" {
+    const jdz_allocator = JdzGlobalAllocator(.{ .map_alloc_count = 1 });
+    defer jdz_allocator.deinit();
+
+    const allocator = jdz_allocator.allocator();
+
+    const alloc_one = try allocator.alloc(u8, span_size * 2);
+
+    const span_one = utils.getSpan(alloc_one.ptr);
+
+    const cache_idx = span_one.span_count - 1;
+
+    allocator.free(alloc_one);
+
+    jdz_allocator.deinitThread();
+
+    const span_two = jdz_allocator.large_cache[cache_idx].buffer[0].data;
+
+    try testing.expect(span_one == span_two);
+
+    const alloc_two = try allocator.alloc(u8, span_size * 2);
+
+    try testing.expect(alloc_one.ptr == alloc_two.ptr);
+
+    allocator.free(alloc_two);
 }

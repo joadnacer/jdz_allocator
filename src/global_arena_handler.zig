@@ -17,30 +17,27 @@ pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
 
         threadlocal var thread_arena: ?*Arena = null;
 
-        pub fn deinit() usize {
+        pub fn deinit() void {
             mutex.lock();
             defer mutex.unlock();
 
-            var spans_leaked: usize = 0;
             var opt_arena = arena_list;
 
             while (opt_arena) |arena| {
                 const next = arena.next;
 
                 if (arena != &preinit_arena) {
-                    spans_leaked += arena.deinit();
-
                     config.backing_allocator.destroy(arena);
                 }
 
                 opt_arena = next;
             }
-
-            return spans_leaked;
         }
 
         pub fn deinitThread() void {
             const arena = thread_arena orelse return;
+
+            _ = arena.deinit();
 
             thread_arena = null;
 

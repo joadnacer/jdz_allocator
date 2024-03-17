@@ -35,7 +35,7 @@ pub fn remove(self: *Self, span: *Span) void {
     if (span.prev) |prev| prev.next = span.next else self.head = span.next;
     if (span.next) |next| next.prev = span.prev else self.tail = span.prev;
 
-    resetSpan(span);
+    utils.resetLinkedSpan(span);
 }
 
 pub fn removeHead(self: *Self) *Span {
@@ -50,7 +50,7 @@ pub fn removeHead(self: *Self) *Span {
         self.tail = null;
     }
 
-    resetSpan(head);
+    utils.resetLinkedSpan(head);
 
     return head;
 }
@@ -112,11 +112,6 @@ fn removeFromListGetNext(self: *Self, span: *Span) ?*Span {
     self.remove(span);
 
     return next;
-}
-
-inline fn resetSpan(span: *Span) void {
-    span.next = null;
-    span.prev = null;
 }
 
 inline fn assertNotInList(span: *Span) void {

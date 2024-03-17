@@ -3,6 +3,7 @@ const span_cache = @import("span_cache.zig");
 const stack = @import("bounded_stack.zig");
 const jdz_allocator = @import("jdz_allocator.zig");
 const mpsc_queue = @import("bounded_mpsc_queue.zig");
+const global_allocator = @import("global_allocator.zig");
 const global_arena_handler = @import("global_arena_handler.zig");
 const static_config = @import("static_config.zig");
 const utils = @import("utils.zig");
@@ -44,6 +45,8 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         next: ?*Self align(cache_line),
         is_alloc_master: bool,
 
+        const GlobalAllocator = if (is_threadlocal) global_allocator.JdzGlobalAllocator(config) else {};
+
         const Self = @This();
 
         pub fn init(writer_lock: Lock, thread_id: ?std.Thread.Id) Self {
@@ -80,18 +83,18 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             self.freeEmptySpansFromLists();
 
             while (self.cache.tryRead()) |span| {
-                self.freeSpan(span);
+                self.freeSpanOnArenaDeinit(span);
             }
 
             for (&self.large_cache) |*large_cache| {
                 while (large_cache.tryRead()) |span| {
-                    self.freeSpan(span);
+                    self.freeSpanOnArenaDeinit(span);
                 }
             }
 
             for (0..self.map_cache.len) |i| {
                 while (self.getCachedMapped(i)) |span| {
-                    self.freeSpan(span);
+                    self.freeSpanOnArenaDeinit(span);
                 }
             }
 
@@ -176,7 +179,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
                 self.getEmptySpansFromLists() orelse
                 self.getSpansFromMapCache() orelse
                 self.getSpansFromLargeCache() orelse
-                self.mapSpan(MapMode.multiple, config.span_alloc_count);
+                self.getSpansExternal();
         }
 
         fn getSpanFromCacheOrNewNonSplitting(self: *Self) ?*Span {
@@ -184,7 +187,16 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
                 self.getSpanFromOneSpanLargeCache() orelse
                 self.getEmptySpansFromLists() orelse
                 self.getSpansFromMapCache() orelse
-                self.mapSpan(MapMode.multiple, config.span_alloc_count);
+                self.getSpansExternal();
+        }
+
+        fn getSpansExternal(self: *Self) ?*Span {
+            if (is_threadlocal) {
+                if (self.getSpansFromGlobalCaches()) |span| {
+                    return span;
+                }
+            }
+            return self.mapSpan(MapMode.multiple, config.span_alloc_count);
         }
 
         inline fn getSpanFromOneSpanLargeCache(self: *Self) ?*Span {
@@ -229,11 +241,58 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             return null;
         }
 
+        fn getSpansFromGlobalCaches(self: *Self) ?*Span {
+            assert(is_threadlocal);
+
+            return self.getSpansFromGlobalSpanCache() orelse {
+                if (config.split_large_spans_to_one) {
+                    return self.getSpansFromGlobalLargeCache();
+                } else {
+                    return null;
+                }
+            };
+        }
+
+        fn getSpansFromGlobalSpanCache(self: *Self) ?*Span {
+            assert(is_threadlocal);
+
+            for (0..config.span_alloc_count) |_| {
+                const span = GlobalAllocator.getCachedSpan() orelse break;
+
+                const written = self.cache.tryWrite(span);
+
+                // should never be called if we have spans in cache
+                assert(written);
+            }
+
+            return self.cache.tryRead();
+        }
+
+        fn getSpansFromGlobalLargeCache(self: *Self) ?*Span {
+            assert(is_threadlocal);
+
+            var span_count: usize = large_class_count;
+
+            while (span_count >= 2) : (span_count -= 1) {
+                const large_span = GlobalAllocator.getCachedLargeSpan(span_count - 1) orelse continue;
+
+                assert(large_span.span_count == span_count);
+
+                self.getSpansFromLargeSpan(large_span);
+
+                return large_span;
+            }
+
+            return null;
+        }
+
         fn getSpansFromLargeSpan(self: *Self, span: *Span) void {
             const to_cache = span.splitFirstSpanReturnRemaining();
 
+            const written = self.cache.tryWrite(to_cache);
+
             // should never be called if we have spans in cache
-            if (!self.cache.tryWrite(to_cache)) unreachable;
+            assert(written);
         }
 
         ///
@@ -273,12 +332,25 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         fn getLargeSpanFromCachesSplitting(self: *Self, span_count: u32, max_count: u32) ?*Span {
             return self.getFromLargeCache(span_count, max_count) orelse
                 self.getFromMapCache(span_count) orelse
-                self.splitLargerCachedSpan(span_count, max_count);
+                self.splitFromLargeCache(span_count, max_count) orelse {
+                if (is_threadlocal) {
+                    return getFromGlobalLargeCache(span_count, max_count) orelse
+                        self.splitFromGlobalLargeCache(span_count, max_count);
+                } else {
+                    return null;
+                }
+            };
         }
 
         fn getLargeSpanFromCachesNonSplitting(self: *Self, span_count: u32, max_count: u32) ?*Span {
             return self.getFromLargeCache(span_count, max_count) orelse
-                self.getFromMapCache(span_count);
+                self.getFromMapCache(span_count) orelse {
+                if (is_threadlocal) {
+                    return getFromGlobalLargeCache(span_count, max_count);
+                } else {
+                    return null;
+                }
+            };
         }
 
         fn getFromLargeCache(self: *Self, span_count: u32, max_span_count: u32) ?*Span {
@@ -293,9 +365,44 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             return null;
         }
 
-        fn splitLargerCachedSpan(self: *Self, desired_count: u32, from_count: u32) ?*Span {
+        fn getFromGlobalLargeCache(span_count: u32, max_span_count: u32) ?*Span {
+            assert(is_threadlocal);
+
+            for (span_count..max_span_count) |count| {
+                const cached = GlobalAllocator.getCachedLargeSpan(count - 1) orelse continue;
+
+                assert(cached.span_count == count);
+
+                return cached;
+            }
+
+            return null;
+        }
+
+        fn splitFromLargeCache(self: *Self, desired_count: u32, from_count: u32) ?*Span {
             for (from_count..large_class_count) |count| {
                 const cached = self.large_cache[count - 1].tryRead() orelse continue;
+
+                assert(cached.span_count == count);
+
+                const remaining = cached.splitFirstSpansReturnRemaining(desired_count);
+
+                if (remaining.span_count > 1)
+                    self.cacheLargeSpanOrFree(remaining)
+                else
+                    self.cacheSpanOrFree(remaining);
+
+                return cached;
+            }
+
+            return null;
+        }
+
+        fn splitFromGlobalLargeCache(self: *Self, desired_count: u32, from_count: u32) ?*Span {
+            assert(is_threadlocal);
+
+            for (from_count..large_class_count) |count| {
+                const cached = GlobalAllocator.getCachedLargeSpan(count - 1) orelse continue;
 
                 assert(cached.span_count == count);
 
@@ -521,6 +628,36 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             };
         }
 
+        fn freeSpanOnArenaDeinit(self: *Self, span: *Span) void {
+            if (is_threadlocal and span.span_count == 1) {
+                self.cacheSpanToGlobalOrFree(span);
+            } else if (is_threadlocal) {
+                self.cacheLargeSpanToGlobalOrFree(span);
+            } else {
+                self.freeSpan(span);
+            }
+        }
+
+        fn cacheSpanToGlobalOrFree(self: *Self, span: *Span) void {
+            assert(is_threadlocal);
+
+            if (GlobalAllocator.cacheSpan(span)) {
+                if (config.report_leaks) self.span_count -= span.span_count;
+            } else {
+                self.freeSpan(span);
+            }
+        }
+
+        fn cacheLargeSpanToGlobalOrFree(self: *Self, span: *Span) void {
+            assert(is_threadlocal);
+
+            if (GlobalAllocator.cacheLargeSpan(span)) {
+                if (config.report_leaks) self.span_count -= span.span_count;
+            } else {
+                self.freeSpan(span);
+            }
+        }
+
         fn freeSpan(self: *Self, span: *Span) void {
             assert(span.alloc_size >= span_size);
 
@@ -532,7 +669,11 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
 
         pub inline fn cacheSpanOrFree(self: *Self, span: *Span) void {
             if (!self.cache.tryWrite(span)) {
-                self.freeSpan(span);
+                if (is_threadlocal) {
+                    self.cacheSpanToGlobalOrFree(span);
+                } else {
+                    self.freeSpan(span);
+                }
             }
         }
 
@@ -552,7 +693,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             while (empty_spans) |span| {
                 empty_spans = span.next;
 
-                self.freeSpan(span);
+                self.freeSpanFromList(span);
             }
         }
 
@@ -563,8 +704,20 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
                 spans = span.next;
 
                 if (span.isEmpty()) {
-                    self.freeSpan(span);
+                    self.freeSpanFromList(span);
+                } else {
+                    self.spans[span.class.class_idx].write(span);
                 }
+            }
+        }
+
+        fn freeSpanFromList(self: *Self, span: *Span) void {
+            if (is_threadlocal) {
+                utils.resetLinkedSpan(span);
+
+                self.cacheSpanToGlobalOrFree(span);
+            } else {
+                self.freeSpan(span);
             }
         }
 
@@ -575,7 +728,11 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             const span_count = span.span_count;
 
             if (!self.large_cache[span_count - 1].tryWrite(span)) {
-                self.freeSpan(span);
+                if (is_threadlocal) {
+                    self.cacheLargeSpanToGlobalOrFree(span);
+                } else {
+                    self.freeSpan(span);
+                }
             }
         }
     };

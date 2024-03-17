@@ -4,21 +4,21 @@ const global_allocator = @import("global_allocator.zig");
 
 const log = std.log.scoped(.jdz_allocator);
 
-const allocator_type = global_allocator.JdzGlobalAllocator(.{});
-var allocator = allocator_type.allocator();
+const JdzGlobalAllocator = global_allocator.JdzGlobalAllocator(.{});
+var allocator = JdzGlobalAllocator.allocator();
 
 ///
 /// Slightly modified copy of https://github.com/dweiller/zimalloc/blob/main/src/libzimalloc.zig
 ///
-export fn malloc(len: usize) ?*anyopaque {
+export fn _jdz_malloc(len: usize) ?*anyopaque {
     log.debug("malloc {d}", .{len});
     return allocateBytes(len, 1, @returnAddress(), false, false, true);
 }
 
-export fn realloc(ptr_opt: ?*anyopaque, len: usize) ?*anyopaque {
+export fn _jdz_realloc(ptr_opt: ?*anyopaque, len: usize) ?*anyopaque {
     log.debug("realloc {?*} {d}", .{ ptr_opt, len });
     if (ptr_opt) |ptr| {
-        const old_size = allocator_type.usableSize(ptr);
+        const old_size = JdzGlobalAllocator.usableSize(ptr);
 
         const bytes_ptr: [*]u8 = @ptrCast(ptr);
         const old_slice = bytes_ptr[0..old_size];
@@ -41,10 +41,10 @@ export fn realloc(ptr_opt: ?*anyopaque, len: usize) ?*anyopaque {
     return allocateBytes(len, 1, @returnAddress(), false, false, true);
 }
 
-export fn free(ptr_opt: ?*anyopaque) void {
+export fn _jdz_free(ptr_opt: ?*anyopaque) void {
     log.debug("free {?*}", .{ptr_opt});
     if (ptr_opt) |ptr| {
-        const old_size = allocator_type.usableSize(ptr);
+        const old_size = JdzGlobalAllocator.usableSize(ptr);
         const bytes_ptr: [*]u8 = @ptrCast(ptr);
         const old_slice = bytes_ptr[0..old_size];
 
@@ -52,18 +52,18 @@ export fn free(ptr_opt: ?*anyopaque) void {
     }
 }
 
-export fn calloc(size: usize, count: usize) ?*anyopaque {
+export fn _jdz_calloc(size: usize, count: usize) ?*anyopaque {
     log.debug("calloc {d} {d}", .{ size, count });
     const bytes = size * count;
     return allocateBytes(bytes, 1, @returnAddress(), true, false, true);
 }
 
-export fn aligned_alloc(alignment: usize, size: usize) ?*anyopaque {
+export fn _jdz_aligned_alloc(alignment: usize, size: usize) ?*anyopaque {
     log.debug("aligned_alloc alignment={d}, size={d}", .{ alignment, size });
     return allocateBytes(size, alignment, @returnAddress(), false, true, true);
 }
 
-export fn posix_memalign(ptr: *?*anyopaque, alignment: usize, size: usize) c_int {
+export fn _jdz_posix_memalign(ptr: *?*anyopaque, alignment: usize, size: usize) c_int {
     log.debug("posix_memalign ptr={*}, alignment={d}, size={d}", .{ ptr, alignment, size });
 
     if (size == 0) {
@@ -83,28 +83,32 @@ export fn posix_memalign(ptr: *?*anyopaque, alignment: usize, size: usize) c_int
     return @intFromEnum(std.os.E.NOMEM);
 }
 
-export fn memalign(alignment: usize, size: usize) ?*anyopaque {
+export fn _jdz_memalign(alignment: usize, size: usize) ?*anyopaque {
     log.debug("memalign alignment={d}, size={d}", .{ alignment, size });
     return allocateBytes(size, alignment, @returnAddress(), false, true, true);
 }
 
-export fn valloc(size: usize) ?*anyopaque {
+export fn _jdz_valloc(size: usize) ?*anyopaque {
     log.debug("valloc {d}", .{size});
     return allocateBytes(size, std.mem.page_size, @returnAddress(), false, false, true);
 }
 
-export fn pvalloc(size: usize) ?*anyopaque {
+export fn _jdz_pvalloc(size: usize) ?*anyopaque {
     log.debug("pvalloc {d}", .{size});
     const aligned_size = std.mem.alignForward(usize, size, std.mem.page_size);
     return allocateBytes(aligned_size, std.mem.page_size, @returnAddress(), false, false, true);
 }
 
-export fn malloc_usable_size(ptr_opt: ?*anyopaque) usize {
+export fn _jdz_malloc_usable_size(ptr_opt: ?*anyopaque) usize {
     if (ptr_opt) |ptr| {
-        return allocator_type.usableSize(ptr);
+        return JdzGlobalAllocator.usableSize(ptr);
     }
 
     return 0;
+}
+
+export fn _jdz_deinit_thread() void {
+    JdzGlobalAllocator.deinitThread();
 }
 
 fn allocateBytes(
