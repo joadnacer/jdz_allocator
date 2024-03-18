@@ -35,6 +35,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
     return struct {
         backing_allocator: std.mem.Allocator,
         spans: [size_class_count]SpanList,
+        free_lists: [size_class_count]*usize,
         deferred_partial_spans: [size_class_count]DeferredSpanList,
         span_count: usize,
         cache: ArenaSpanCache,
@@ -64,6 +65,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             return .{
                 .backing_allocator = config.backing_allocator,
                 .spans = .{.{}} ** size_class_count,
+                .free_lists = .{@constCast(&free_list_null)} ** size_class_count,
                 .deferred_partial_spans = .{.{}} ** size_class_count,
                 .span_count = 0,
                 .cache = ArenaSpanCache.init(),
@@ -119,10 +121,8 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         pub inline fn allocateToSpan(self: *Self, size_class: SizeClass) ?[*]u8 {
             assert(size_class.class_idx != span_class.class_idx);
 
-            const opt_span = self.spans[size_class.class_idx].tryRead();
-
-            if (opt_span != null and opt_span.?.free_list != free_list_null) {
-                return opt_span.?.popFreeListElement();
+            if (self.free_lists[size_class.class_idx].* != free_list_null) {
+                return self.spans[size_class.class_idx].head.?.popFreeListElement();
             }
 
             return self.allocateGeneric(size_class);
@@ -140,6 +140,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
                     @atomicStore(bool, &span.full, true, .Monotonic);
 
                     _ = self.spans[size_class.class_idx].removeHead();
+                    self.free_lists[size_class.class_idx] = self.spans[size_class.class_idx].getHeadFreeList();
                 } else {
                     return span.allocate();
                 }
@@ -154,6 +155,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             };
 
             self.spans[size_class.class_idx].writeLinkedSpans(partial_span);
+            self.free_lists[size_class.class_idx] = self.spans[size_class.class_idx].getHeadFreeList();
 
             return partial_span.allocate();
         }
@@ -164,6 +166,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             span.initialiseFreshSpan(self, size_class);
 
             self.spans[size_class.class_idx].write(span);
+            self.free_lists[size_class.class_idx] = self.spans[size_class.class_idx].getHeadFreeList();
 
             return span.allocateFromFreshSpan();
         }
@@ -206,8 +209,9 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         fn getEmptySpansFromLists(self: *Self) ?*Span {
             var ret_span: ?*Span = null;
 
-            for (&self.spans) |*spans| {
+            for (0.., &self.spans) |i, *spans| {
                 var empty_spans = spans.getEmptySpans() orelse continue;
+                self.free_lists[i] = spans.getHeadFreeList();
 
                 if (ret_span) |span| self.cacheSpanOrFree(span);
 
@@ -611,6 +615,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         inline fn handleSpanNoLongerFull(self: *Self, span: *Span) void {
             if (span.full and @atomicRmw(bool, &span.full, .Xchg, false, .Monotonic)) {
                 self.spans[span.class.class_idx].write(span);
+                self.free_lists[span.class.class_idx] = self.spans[span.class.class_idx].getHeadFreeList();
             }
         }
 
@@ -690,6 +695,10 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
         fn freeList(self: *Self, spans: *SpanList) void {
             var empty_spans = spans.getEmptySpans();
 
+            if (empty_spans) |span| {
+                self.free_lists[span.class.class_idx] = spans.getHeadFreeList();
+            }
+
             while (empty_spans) |span| {
                 empty_spans = span.next;
 
@@ -707,6 +716,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
                     self.freeSpanFromList(span);
                 } else {
                     self.spans[span.class.class_idx].write(span);
+                    self.free_lists[span.class.class_idx] = self.spans[span.class.class_idx].getHeadFreeList();
                 }
             }
         }

@@ -1,6 +1,8 @@
 const std = @import("std");
 const utils = @import("utils.zig");
 
+const Span = @import("Span.zig");
+
 const log2 = std.math.log2;
 const log2_int = std.math.log2_int;
 const assert = std.debug.assert;

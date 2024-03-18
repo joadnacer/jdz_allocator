@@ -1,6 +1,7 @@
 const std = @import("std");
 const jdz_allocator = @import("jdz_allocator.zig");
 const utils = @import("utils.zig");
+const static_config = @import("static_config.zig");
 
 const Span = @import("Span.zig");
 const JdzAllocConfig = jdz_allocator.JdzAllocConfig;
@@ -104,6 +105,14 @@ pub fn getEmptySpans(self: *Self) ?*Span {
     }
 
     return empty_spans_head;
+}
+
+pub fn getHeadFreeList(self: *Self) *usize {
+    if (self.head) |head| {
+        return &head.free_list;
+    } else {
+        return @constCast(&static_config.free_list_null);
+    }
 }
 
 fn removeFromListGetNext(self: *Self, span: *Span) ?*Span {
