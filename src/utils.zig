@@ -82,6 +82,11 @@ pub inline fn tryCASAddOne(atomic_ptr: *Atomic(usize), val: usize, success_order
     return atomic_ptr.tryCompareAndSwap(val, val + 1, success_ordering, .Monotonic);
 }
 
+pub inline fn resetLinkedSpan(span: *Span) void {
+    span.next = null;
+    span.prev = null;
+}
+
 const span_size = static_config.span_size;
 const span_upper_mask = static_config.span_upper_mask;
 const span_header_size = static_config.span_header_size;

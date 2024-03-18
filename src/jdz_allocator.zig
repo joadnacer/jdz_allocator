@@ -26,10 +26,13 @@ pub const JdzAllocConfig = struct {
     cache_limit: u32 = 64,
 
     /// maximum number spans in arena large caches
-    large_cache_limit: u32 = 64,
+    large_cache_limit: u32 = 16,
 
     /// maximum number of spans in arena map cache
     map_cache_limit: u32 = 16,
+
+    /// global cache multiplier
+    global_cache_multiplier: u32 = 4,
 
     /// percentage overhead applied to span count when looking for a large span in cache
     /// increases cache hits and memory usage, but does hurt performance
@@ -43,11 +46,11 @@ pub const JdzAllocConfig = struct {
     /// improves memory usage but hurts performance
     split_large_spans_to_large: bool = true,
 
-    /// shared allocator batch arena instantiation amount
+    /// JdzSharedAllocator batch arena instantiation amount
     /// prevents allocator-induced false sharing if greater than total number of allocating threads
     shared_arena_batch_size: u32 = 8,
 
-    /// if leaks should be reported
+    /// if leaks should be reported - only works with JdzSharedAllocator
     report_leaks: bool = builtin.mode == .Debug,
 
     /// Whether to synchronize usage of this allocator.
