@@ -25,14 +25,15 @@ const Self = @This();
 arena: *anyopaque,
 free_list: usize,
 deferred_free_list: usize,
-deferred_lock: RwLock,
+multithread_free_list: usize,
+rwlock: RwLock,
 full: bool,
 next: ?*Self,
 prev: ?*Self,
 alloc_ptr: usize,
 class: SizeClass,
 block_count: u16,
-deferred_frees: u16,
+multithread_frees: u16,
 initial_ptr: usize,
 alloc_size: usize,
 span_count: u32,
@@ -46,10 +47,10 @@ pub inline fn pushFreeList(self: *Self, buf: []u8) void {
     self.block_count -= 1;
 }
 
-pub inline fn pushDeferredFreeList(self: *Self, buf: []u8) void {
+pub inline fn pushMultithreadFreeList(self: *Self, buf: []u8) void {
     const ptr = self.getBlockPtr(buf);
 
-    self.pushDeferredFreeListElement(ptr);
+    self.pushMultithreadFreeListElement(ptr);
 }
 
 pub fn allocate(self: *Self) [*]u8 {
@@ -105,12 +106,13 @@ pub fn initialiseFreshSpan(self: *Self, arena: *anyopaque, size_class: SizeClass
         .class = size_class,
         .free_list = free_list_null,
         .deferred_free_list = free_list_null,
-        .deferred_lock = .{},
+        .multithread_free_list = free_list_null,
+        .rwlock = .{},
         .full = false,
         .next = null,
         .prev = null,
         .block_count = 0,
-        .deferred_frees = 0,
+        .multithread_frees = 0,
         .span_count = 1,
         .aligned_blocks = false,
     };
@@ -125,23 +127,24 @@ pub fn initialiseFreshLargeSpan(self: *Self, arena: *anyopaque, span_count: u32)
         .class = undefined,
         .free_list = free_list_null,
         .deferred_free_list = free_list_null,
+        .multithread_free_list = free_list_null,
         .full = false,
-        .deferred_lock = .{},
+        .rwlock = .{},
         .next = null,
         .prev = null,
         .block_count = 0,
-        .deferred_frees = 0,
+        .multithread_frees = 0,
         .span_count = span_count,
         .aligned_blocks = false,
     };
 }
 
-pub fn isFull(self: *Self) bool {
-    return self.block_count == self.class.block_max and self.deferred_frees == 0;
+pub inline fn isFull(self: *Self) bool {
+    return self.block_count == self.class.block_max and self.multithread_frees == 0;
 }
 
-pub fn isEmpty(self: *Self) bool {
-    return self.block_count - self.deferred_frees == 0;
+pub inline fn isEmpty(self: *Self) bool {
+    return self.block_count - self.multithread_frees == 0;
 }
 
 pub fn splitLastSpans(self: *Self, span_count: u32) *Self {
@@ -169,6 +172,8 @@ pub fn splitFirstSpansReturnRemaining(self: *Self, span_count: u32) *Self {
 
 inline fn allocateDeferredOrPtr(self: *Self) [*]u8 {
     if (self.freeDeferredList()) {
+        return self.popFreeListElement();
+    } else if (self.freeMultithreadList()) {
         return self.popFreeListElement();
     } else {
         return self.allocateFromAllocPtr();
@@ -212,39 +217,48 @@ inline fn pushFreeListElementForwardPointing(self: *Self) void {
 
 inline fn pushFreeListElement(self: *Self, ptr: [*]u8) void {
     const block: *?usize = @ptrCast(@alignCast(ptr));
-    block.* = self.free_list;
-    self.free_list = @intFromPtr(block);
+    block.* = self.deferred_free_list;
+    self.deferred_free_list = @intFromPtr(block);
 }
 
-inline fn pushDeferredFreeListElement(self: *Self, ptr: [*]u8) void {
+inline fn pushMultithreadFreeListElement(self: *Self, ptr: [*]u8) void {
     const block: *usize = @ptrCast(@alignCast(ptr));
 
-    self.deferred_lock.lockShared();
-    defer self.deferred_lock.unlockShared();
+    self.rwlock.lockShared();
+    defer self.rwlock.unlockShared();
 
     while (true) {
-        block.* = self.deferred_free_list;
+        block.* = self.multithread_free_list;
 
-        if (@cmpxchgWeak(usize, &self.deferred_free_list, block.*, @intFromPtr(block), .Monotonic, .Monotonic) == null) {
-            _ = @atomicRmw(u16, &self.deferred_frees, .Add, 1, .Monotonic);
+        if (@cmpxchgWeak(usize, &self.multithread_free_list, block.*, @intFromPtr(block), .Monotonic, .Monotonic) == null) {
+            _ = @atomicRmw(u16, &self.multithread_frees, .Add, 1, .Monotonic);
 
             return;
         }
     }
 }
 
-inline fn freeDeferredList(self: *Self) bool {
+fn freeDeferredList(self: *Self) bool {
     assert(self.free_list == free_list_null);
 
-    if (self.deferred_free_list == free_list_null) return false;
-
-    self.deferred_lock.lock();
-    defer self.deferred_lock.unlock();
-
     self.free_list = self.deferred_free_list;
-    self.block_count -= self.deferred_frees;
     self.deferred_free_list = free_list_null;
-    self.deferred_frees = 0;
+
+    return self.free_list != free_list_null;
+}
+
+fn freeMultithreadList(self: *Self) bool {
+    assert(self.free_list == free_list_null);
+
+    if (self.multithread_free_list == free_list_null) return false;
+
+    self.rwlock.lock();
+    defer self.rwlock.unlock();
+
+    self.free_list = self.multithread_free_list;
+    self.block_count -= self.multithread_frees;
+    self.multithread_free_list = free_list_null;
+    self.multithread_frees = 0;
 
     return true;
 }

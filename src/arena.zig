@@ -590,7 +590,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
 
                 self.handleSpanNoLongerFull(span);
             } else {
-                span.pushDeferredFreeList(buf);
+                span.pushMultithreadFreeList(buf);
 
                 self.handleSpanNoLongerFullDeferred(span);
             }
@@ -606,7 +606,7 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
 
                 self.handleSpanNoLongerFull(span);
             } else {
-                span.pushDeferredFreeList(buf);
+                span.pushMultithreadFreeList(buf);
 
                 self.handleSpanNoLongerFullDeferred(span);
             }
