@@ -1,11 +1,11 @@
 const std = @import("std");
-const assert = std.assert;
-const shared_allocator = @import("shared_allocator.zig");
+const jdz_allocator = @import("jdz_allocator");
 
+const assert = std.assert;
 const log = std.log.scoped(.jdz_allocator);
 
-var allocator_instance = shared_allocator.JdzAllocator(.{}).init();
-var allocator = allocator_instance.allocator();
+const JdzGlobalAllocator = jdz_allocator.JdzGlobalAllocator(.{});
+var allocator = JdzGlobalAllocator.allocator();
 
 ///
 /// Slightly modified copy of https://github.com/dweiller/zimalloc/blob/main/src/libzimalloc.zig
@@ -18,7 +18,7 @@ export fn malloc(len: usize) ?*anyopaque {
 export fn realloc(ptr_opt: ?*anyopaque, len: usize) ?*anyopaque {
     log.debug("realloc {?*} {d}", .{ ptr_opt, len });
     if (ptr_opt) |ptr| {
-        const old_size = allocator_instance.usableSize(ptr);
+        const old_size = JdzGlobalAllocator.usableSize(ptr);
 
         const bytes_ptr: [*]u8 = @ptrCast(ptr);
         const old_slice = bytes_ptr[0..old_size];
@@ -44,7 +44,7 @@ export fn realloc(ptr_opt: ?*anyopaque, len: usize) ?*anyopaque {
 export fn free(ptr_opt: ?*anyopaque) void {
     log.debug("free {?*}", .{ptr_opt});
     if (ptr_opt) |ptr| {
-        const old_size = allocator_instance.usableSize(ptr);
+        const old_size = JdzGlobalAllocator.usableSize(ptr);
         const bytes_ptr: [*]u8 = @ptrCast(ptr);
         const old_slice = bytes_ptr[0..old_size];
 
@@ -101,10 +101,14 @@ export fn pvalloc(size: usize) ?*anyopaque {
 
 export fn malloc_usable_size(ptr_opt: ?*anyopaque) usize {
     if (ptr_opt) |ptr| {
-        return allocator_instance.usableSize(ptr);
+        return JdzGlobalAllocator.usableSize(ptr);
     }
 
     return 0;
+}
+
+export fn jdz_deinit_thread() void {
+    JdzGlobalAllocator.deinitThread();
 }
 
 fn allocateBytes(

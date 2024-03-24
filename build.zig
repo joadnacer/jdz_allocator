@@ -5,36 +5,57 @@ pub fn build(b: *std.Build) !void {
 
     const optimize = b.standardOptimizeOption(.{});
 
-    _ = b.addModule("jdz_allocator", .{ .source_file = .{
+    const jdz_allocator = b.addModule("jdz_allocator", .{ .source_file = .{
         .path = "src/jdz_allocator.zig",
     } });
 
-    const lib = b.addStaticLibrary(.{
+    const static_lib = b.addStaticLibrary(.{
         .name = "jdz_allocator",
         .root_source_file = .{ .path = "src/jdz_allocator.zig" },
         .target = target,
         .optimize = optimize,
     });
 
-    b.installArtifact(lib);
+    b.installArtifact(static_lib);
 
     const libjdzglobal = b.addSharedLibrary(.{
         .name = "jdzglobal",
-        .root_source_file = .{ .path = "src/libjdzglobal.zig" },
+        .root_source_file = .{ .path = "libso/libjdzglobal.zig" },
         .target = target,
         .optimize = optimize,
         .link_libc = true,
     });
+
+    libjdzglobal.addModule("jdz_allocator", jdz_allocator);
 
     b.installArtifact(libjdzglobal);
 
-    const libjdzshared = b.addSharedLibrary(.{
-        .name = "jdzshared",
-        .root_source_file = .{ .path = "src/libjdzshared.zig" },
+    const libjdzglobalwrap = b.addSharedLibrary(.{
+        .name = "jdzglobalwrap",
+        .root_source_file = .{ .path = "libso/libjdzglobal.zig" },
         .target = target,
         .optimize = optimize,
         .link_libc = true,
     });
+
+    libjdzglobalwrap.addCSourceFile(.{
+        .file = .{ .path = "libso/libjdzglobalwrap.c" },
+        .flags = &[_][]const u8{},
+    });
+
+    libjdzglobalwrap.addModule("jdz_allocator", jdz_allocator);
+
+    b.installArtifact(libjdzglobalwrap);
+
+    const libjdzshared = b.addSharedLibrary(.{
+        .name = "jdzshared",
+        .root_source_file = .{ .path = "libso/libjdzshared.zig" },
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+
+    libjdzshared.addModule("jdz_allocator", jdz_allocator);
 
     b.installArtifact(libjdzshared);
 
