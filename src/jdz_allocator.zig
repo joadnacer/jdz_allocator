@@ -26,7 +26,7 @@ pub const JdzAllocConfig = struct {
     cache_limit: u32 = 64,
 
     /// maximum number spans in arena large caches
-    large_cache_limit: u32 = 16,
+    large_cache_limit: u32 = 64,
 
     /// maximum number of spans in arena map cache
     map_cache_limit: u32 = 16,
