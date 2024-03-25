@@ -43,6 +43,8 @@ pub fn BoundedMpmcQueue(comptime T: type, comptime buffer_size: usize) type {
         /// Attempts to write to the queue, without overwriting any data
         /// Returns `true` if the data is written, `false` if the queue was full
         pub fn tryWrite(self: *Self, data: T) bool {
+            @setCold(true);
+
             var pos = self.enqueue_pos.load(Ordering.Monotonic);
 
             var cell: *Cell = undefined;
@@ -70,6 +72,8 @@ pub fn BoundedMpmcQueue(comptime T: type, comptime buffer_size: usize) type {
         /// Attempts to read and remove the head element of the queue
         /// Returns `null` if there was no element to read
         pub fn tryRead(self: *Self) ?T {
+            @setCold(true);
+
             var cell: *Cell = undefined;
             var pos = self.dequeue_pos.load(Ordering.Monotonic);
 

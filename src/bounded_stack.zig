@@ -19,6 +19,8 @@ pub fn BoundedStack(comptime T: type, comptime buffer_size: usize) type {
         }
 
         pub fn tryWrite(self: *Self, data: T) bool {
+            @setCold(true);
+
             if (self.count == buffer_size) return false;
 
             self.buffer[self.count] = data;
@@ -28,6 +30,8 @@ pub fn BoundedStack(comptime T: type, comptime buffer_size: usize) type {
         }
 
         pub fn tryRead(self: *Self) ?T {
+            @setCold(true);
+
             if (self.count == 0) return null;
 
             self.count -= 1;
