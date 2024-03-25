@@ -56,7 +56,6 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
         pub var cache: GlobalSpanCache = GlobalSpanCache.init();
         pub var large_cache: [large_class_count]GlobalLargeCache = .{GlobalLargeCache.init()} ** large_class_count;
 
-        var huge_count: Atomic(usize) = Atomic(usize).init(0);
         var backing_allocator = config.backing_allocator;
 
         pub fn deinit() void {
@@ -80,9 +79,10 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
 
         fn alloc(ctx: *anyopaque, len: usize, log2_align: u8, ret_addr: usize) ?[*]u8 {
             _ = ctx;
+            _ = ret_addr;
 
             if (log2_align <= small_granularity_shift) {
-                return allocate(len, log2_align, ret_addr);
+                return allocate(len);
             }
 
             const alignment = @as(usize, 1) << @intCast(log2_align);
@@ -90,12 +90,12 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
 
             if (size <= span_header_size) {
                 const aligned_block_size: usize = utils.roundUpToPowerOfTwo(size);
-                return allocate(aligned_block_size, log2_align, ret_addr);
+                return allocate(aligned_block_size);
             }
 
             assert(alignment <= page_size);
 
-            if (allocate(size + alignment, log2_align, ret_addr)) |block_ptr| {
+            if (allocate(size + alignment)) |block_ptr| {
                 const align_mask: usize = alignment - 1;
                 var ptr = block_ptr;
 
@@ -132,27 +132,24 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
 
         fn free(ctx: *anyopaque, buf: []u8, log2_align: u8, ret_addr: usize) void {
             _ = ctx;
+            _ = ret_addr;
 
             const alignment = @as(usize, 1) << @intCast(log2_align);
             const size = @max(alignment, buf.len);
             const span = utils.getSpan(buf.ptr);
 
+            const arena: *Arena = @ptrCast(@alignCast(span.arena));
+
             if (size <= medium_max) {
-                const arena: *Arena = @ptrCast(@alignCast(span.arena));
                 arena.freeSmallOrMedium(span, buf);
             } else if (size <= large_max) {
-                const arena: *Arena = @ptrCast(@alignCast(span.arena));
                 arena.cacheLargeSpanOrFree(span);
             } else {
-                _ = huge_count.fetchSub(1, .Monotonic);
-                backing_allocator.rawFree(buf, log2_align, ret_addr);
+                arena.freeHuge(span);
             }
         }
 
-        ///
-        /// Allocation
-        ///
-        fn allocate(size: usize, log2_align: u8, ret_addr: usize) ?[*]u8 {
+        fn allocate(size: usize) ?[*]u8 {
             const arena = ArenaHandler.getArena() orelse return null;
 
             return if (size <= small_max)
@@ -163,21 +160,12 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
                 arena.allocateOneSpan(span_class)
             else if (size <= large_max)
                 arena.allocateToLargeSpan(utils.getSpanCount(size))
-            else
-                allocateHuge(size, log2_align, ret_addr);
+            else {
+                const span_count = utils.getHugeSpanCount(size) orelse return null;
+                return arena.allocateHuge(span_count);
+            };
         }
 
-        inline fn allocateHuge(size: usize, log2_align: u8, ret_addr: usize) ?[*]u8 {
-            if (backing_allocator.rawAlloc(size, log2_align, ret_addr)) |buf| {
-                _ = huge_count.fetchAdd(1, .Monotonic);
-
-                return buf;
-            }
-
-            return null;
-        }
-
-        /// for mimalloc-bench, does not work for huge allocs
         pub fn usableSize(ptr: *anyopaque) usize {
             const span = utils.getSpan(ptr);
 

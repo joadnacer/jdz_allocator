@@ -66,10 +66,20 @@ pub inline fn isPowerOfTwo(n: u64) bool {
     return (n & (n - 1)) == 0;
 }
 
-pub inline fn getSpanCount(len: usize) u32 {
+pub inline fn getSpanCount(len: usize) usize {
     assert(len <= large_max);
 
-    const size: u32 = @truncate(len + span_header_size);
+    const size: usize = len + span_header_size;
+
+    return (((size - 1) / span_size) * span_size + span_size) / span_size;
+}
+
+pub inline fn getHugeSpanCount(len: usize) ?usize {
+    if (@addWithOverflow(len, span_header_size).@"0" < len) {
+        return null;
+    }
+
+    const size: usize = len + span_header_size;
 
     return (((size - 1) / span_size) * span_size + span_size) / span_size;
 }

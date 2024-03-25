@@ -35,7 +35,7 @@ block_count: u16,
 deferred_frees: u16,
 initial_ptr: usize,
 alloc_size: usize,
-span_count: u32,
+span_count: usize,
 aligned_blocks: bool,
 
 pub inline fn pushFreeList(self: *Self, buf: []u8) void {
@@ -116,7 +116,7 @@ pub fn initialiseFreshSpan(self: *Self, arena: *anyopaque, size_class: SizeClass
     };
 }
 
-pub fn initialiseFreshLargeSpan(self: *Self, arena: *anyopaque, span_count: u32) void {
+pub fn initialiseFreshLargeSpan(self: *Self, arena: *anyopaque, span_count: usize) void {
     self.* = .{
         .arena = arena,
         .initial_ptr = self.initial_ptr,
@@ -136,23 +136,23 @@ pub fn initialiseFreshLargeSpan(self: *Self, arena: *anyopaque, span_count: u32)
     };
 }
 
-pub fn isFull(self: *Self) bool {
+pub inline fn isFull(self: *Self) bool {
     return self.block_count == self.class.block_max and self.deferred_frees == 0;
 }
 
-pub fn isEmpty(self: *Self) bool {
+pub inline fn isEmpty(self: *Self) bool {
     return self.block_count - self.deferred_frees == 0;
 }
 
-pub fn splitLastSpans(self: *Self, span_count: u32) *Self {
+pub inline fn splitLastSpans(self: *Self, span_count: usize) *Self {
     return self.splitFirstSpansReturnRemaining(self.span_count - span_count);
 }
 
-pub fn splitFirstSpanReturnRemaining(self: *Self) *Self {
+pub inline fn splitFirstSpanReturnRemaining(self: *Self) *Self {
     return self.splitFirstSpansReturnRemaining(1);
 }
 
-pub fn splitFirstSpansReturnRemaining(self: *Self, span_count: u32) *Self {
+pub fn splitFirstSpansReturnRemaining(self: *Self, span_count: usize) *Self {
     assert(self.span_count > span_count);
 
     const remaining_span_addr = @intFromPtr(self) + span_size * span_count;
