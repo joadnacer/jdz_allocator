@@ -1,9 +1,9 @@
 # jdz_allocator: A Zig General Purpose Memory Allocator
-jdz_allocator is an original general purpose allocator inspired by Mattias Jansson's [rpmalloc](https://github.com/mjansson/rpmalloc). It is currently a work in progress, and segfaults on one [mimalloc-bench](https://github.com/daanx/mimalloc-bench) test. The current focus is on improving performance, and I would not advise using this yet.
+jdz_allocator is an original general purpose allocator inspired by Mattias Jansson's [rpmalloc](https://github.com/mjansson/rpmalloc) and Microsoft's [mimalloc](https://github.com/microsoft/mimalloc). Although it currently successfully all mimalloc-bench tests without faults, it is not yet battle-tested and may error under certain loads or configurations.
 
-In its default configuration, it uses no global or threadlocal vars, making it compatible with Zig allocator design. This allows it to function without the need for any `deinitThread` calls while still achieving reasonable multi-threaded performance.
+In its default configuration, it uses no global or threadlocal vars, making it compatible with Zig allocator design. This allows it to function without the need for any `deinitThread` calls while still achieving reasonable multi-threaded performance. It may induce false sharing in the case that `N allocating threads > config.shared_arena_batch_size` (I am currently writing a more in-depth explanation of this issue as it relates to Zig allocators).
 
-If multithreaded performance is essential, and cannot be handled appropriately through the use of multiple allocator instances, a global allocator is available under `jdz_allocator.JdzGlobalAllocator`. With this allocator, make sure to call `deinitThread` before thread termination to free thread memory for re-use. This allocator exists as a singleton-per-configuration, with distinct instances existing for different configs.
+For optimal performance, a global-state-based allocator is available under `jdz_allocator.JdzGlobalAllocator`. With this allocator, make sure to call `deinitThread` before thread termination to free thread memory for re-use. This allocator exists as a singleton-per-configuration, with distinct instances existing for different configs.
 
 Please note that this allocator is a work in progress, and has not yet been thoroughly tested. Usage and bug reports are appreciated and will help contribute to this allocator's completion.
 
@@ -43,7 +43,7 @@ Create a build.zig.zon file like this:
 
     .dependencies = .{
         .jdz_allocator = .{
-            .url = "https://github.com/joadnacer/jdz_allocator/archive/4fbfaf5883e1f1117dd5b410fdbfef8de23984d3.tar.gz",
+            .url = "https://github.com/joadnacer/jdz_allocator/archive/9a1937df9f06967e8a1d529e0be6c732d6322c7b.tar.gz",
             .hash = "1220e341421a18a8682c5707ed52ef7e60d1d40a723bfa9c9bf16d900fb57c21d480" },
     },
 }
@@ -80,11 +80,11 @@ Or if using the global allocator:
 const jdz_allocator = @import("jdz_allocator");
 
 pub fn main() !void {
-    const jdz = jdz_allocator.JdzGlobalAllocator(.{});
-    defer jdz.deinit();
-    defer jdz.deinitThread(); // call this from every thread that makes an allocation
+    const JdzGlobalAllocator = jdz_allocator.JdzGlobalAllocator(.{});
+    defer JdzGlobalAllocator.deinit();
+    defer JdzGlobalAllocator.deinitThread(); // call this from every thread that makes an allocation
 
-    const allocator = jdz.allocator();
+    const allocator = JdzGlobalAllocator.allocator();
 
     const res = try allocator.alloc(u8, 8);
     defer allocator.free(res);
@@ -106,7 +106,7 @@ Large allocations are made to "large spans" which consist of up to 64 contiguous
 
 Allocations occur from arenas, which may only have one thread allocating at a time, although threads may free concurrently.
 
-Arenas are distributed to threads through the arena_handler, which in the default configuration will distribute arenas stored in a concurrent linked list through the use of try-locks. Threads will attempt to claim arenas as theirs via the storing of thread-ids, but arena stealing will consistently occur.
+Arenas are distributed to threads through the arena_handler, which in the default configuration will distribute arenas stored in a concurrent linked list through the use of try-locks. Threads will attempt to claim arenas as theirs via the storing of thread-ids, but arena stealing will consistently occur for `N allocating threads > config.shared_arena_batch_size`, leading to allocator-induced false sharing.
 
 When used as a global allocator, no arena stealing will occur as arenas will be stored as threadlocal vars, guaranteeing ideal performance.
 
@@ -119,3 +119,5 @@ Arenas consist of the following:
 </ul>
 
 Spans, the span stack and the global arena handler's arena list (which is not ABA safe, unlike the non-global arena handler's) are currently protected with mutexes. This will likely be improved in the future, with the first two needing to be benchmarked with cross-thread frees.
+
+The global allocator also makes use of global caches - one for single spans and one for large spans, implemented as bounded MPMC queues. Upon filling of an arena's local caches, or thread deinit, spans will be freed to the global cache to be reused by other arenas.
