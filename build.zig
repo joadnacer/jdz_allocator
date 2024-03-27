@@ -16,6 +16,8 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
+    static_lib.addIncludePath(.{ .path = "c-src" });
+
     b.installArtifact(static_lib);
 
     const libjdzglobal = b.addSharedLibrary(.{
@@ -25,6 +27,8 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
         .link_libc = true,
     });
+
+    libjdzglobal.addIncludePath(.{ .path = "c-src" });
 
     libjdzglobal.addModule("jdz_allocator", jdz_allocator);
 
@@ -37,6 +41,8 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
         .link_libc = true,
     });
+
+    libjdzglobalwrap.addIncludePath(.{ .path = "c-src" });
 
     libjdzglobalwrap.addCSourceFile(.{
         .file = .{ .path = "libso/libjdzglobalwrap.c" },
@@ -54,6 +60,8 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
         .link_libc = true,
     });
+
+    libjdzshared.addIncludePath(.{ .path = "c-src" });
 
     libjdzshared.addModule("jdz_allocator", jdz_allocator);
 
@@ -78,6 +86,8 @@ pub fn build(b: *std.Build) !void {
         .link_libc = true,
     });
 
+    bench_exe.addIncludePath(.{ .path = "c-src" });
+
     const grow_shrink_bench_exe = b.addExecutable(.{
         .name = "bench",
         .root_source_file = .{ .path = "src/grow_shrink_bench.zig" },
@@ -85,6 +95,8 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
         .link_libc = true,
     });
+
+    grow_shrink_bench_exe.addIncludePath(.{ .path = "c-src" });
 
     b.installArtifact(bench_exe);
     b.installArtifact(grow_shrink_bench_exe);

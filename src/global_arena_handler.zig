@@ -5,6 +5,13 @@ const utils = @import("utils.zig");
 
 const JdzAllocConfig = jdz_allocator.JdzAllocConfig;
 
+const threadlocal_arenas = @cImport({
+    @cInclude("threadlocal_arenas.c");
+});
+
+const _jdz_get_thread_arena = threadlocal_arenas._jdz_get_thread_arena;
+const _jdz_set_thread_arena = threadlocal_arenas._jdz_set_thread_arena;
+
 pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
     const Mutex = utils.getMutexType(config);
 
@@ -14,8 +21,6 @@ pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
         var preinit_arena: Arena = Arena.init(.unlocked, 0);
         var arena_list: ?*Arena = &preinit_arena;
         var mutex: Mutex = .{};
-
-        threadlocal var thread_arena: ?*Arena = null;
 
         pub fn deinit() void {
             mutex.lock();
@@ -35,23 +40,23 @@ pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
         }
 
         pub fn deinitThread() void {
-            const arena = thread_arena orelse return;
+            const arena: *Arena = @ptrCast(@alignCast(_jdz_get_thread_arena() orelse return));
 
             _ = arena.deinit();
 
-            thread_arena = null;
+            _jdz_set_thread_arena(@as(?*anyopaque, null));
 
             addArenaToList(arena);
         }
 
         pub inline fn getArena() ?*Arena {
-            return thread_arena orelse
+            return getThreadArena() orelse
                 getArenaFromList() orelse
                 createArena();
         }
 
         pub inline fn getThreadArena() ?*Arena {
-            return thread_arena;
+            return @ptrCast(@alignCast(_jdz_get_thread_arena()));
         }
 
         fn getArenaFromList() ?*Arena {
@@ -63,7 +68,7 @@ pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
                 arena.next = null;
                 arena.thread_id = std.Thread.getCurrentId();
 
-                thread_arena = arena;
+                _jdz_set_thread_arena(arena);
 
                 return arena;
             }
@@ -76,7 +81,7 @@ pub fn GlobalArenaHandler(comptime config: JdzAllocConfig) type {
 
             new_arena.* = Arena.init(.unlocked, std.Thread.getCurrentId());
 
-            thread_arena = new_arena;
+            _jdz_set_thread_arena(new_arena);
 
             return new_arena;
         }
