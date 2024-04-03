@@ -3,11 +3,12 @@ const std = @import("std");
 const jdz_allocator = @import("jdz_allocator.zig");
 const static_config = @import("static_config.zig");
 const lock = @import("lock.zig");
+const span_file = @import("span.zig");
 
 const JdzAllocConfig = jdz_allocator.JdzAllocConfig;
 const SizeClass = static_config.SizeClass;
 
-const Span = @import("Span.zig");
+const Span = span_file.Span;
 const Atomic = std.atomic.Atomic;
 const Ordering = std.atomic.Ordering;
 const assert = std.debug.assert;

@@ -5,7 +5,8 @@ const testing = std.testing;
 const assert = std.debug.assert;
 
 pub fn BoundedStack(comptime T: type, comptime buffer_size: usize) type {
-    return struct {
+    return extern struct {
+        buffer_size: usize,
         count: usize,
         buffer: [buffer_size]T,
 
@@ -13,13 +14,14 @@ pub fn BoundedStack(comptime T: type, comptime buffer_size: usize) type {
 
         pub fn init() BoundedStack(T, buffer_size) {
             return .{
+                .buffer_size = buffer_size,
                 .count = 0,
                 .buffer = undefined,
             };
         }
 
         pub fn tryWrite(self: *Self, data: T) bool {
-            if (self.count == buffer_size) return false;
+            if (self.count == self.buffer_size) return false;
 
             self.buffer[self.count] = data;
             self.count += 1;

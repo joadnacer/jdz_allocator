@@ -6,8 +6,9 @@ const shared_arena_handler = @import("shared_arena_handler.zig");
 const span_arena = @import("arena.zig");
 const static_config = @import("static_config.zig");
 const utils = @import("utils.zig");
+const span_file = @import("span.zig");
 
-const Span = @import("Span.zig");
+const Span = span_file.Span;
 const JdzAllocConfig = jdz.JdzAllocConfig;
 const Atomic = std.atomic.Atomic;
 

@@ -4,8 +4,9 @@ const jdz_allocator = @import("jdz_allocator.zig");
 const bounded_stack = @import("bounded_stack.zig");
 const static_config = @import("static_config.zig");
 const utils = @import("utils.zig");
+const span_file = @import("span.zig");
 
-const Span = @import("Span.zig");
+const Span = span_file.Span;
 const testing = std.testing;
 const assert = std.debug.assert;
 const JdzAllocConfig = jdz_allocator.JdzAllocConfig;

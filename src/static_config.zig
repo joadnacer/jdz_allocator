@@ -1,13 +1,14 @@
 const std = @import("std");
 const utils = @import("utils.zig");
+const span_file = @import("span.zig");
 
-const Span = @import("Span.zig");
+const Span = span_file.Span;
 
 const log2 = std.math.log2;
 const log2_int = std.math.log2_int;
 const assert = std.debug.assert;
 
-pub const SizeClass = struct {
+pub const SizeClass = extern struct {
     block_size: u32,
     block_max: u16,
     class_idx: u16,

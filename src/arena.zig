@@ -7,9 +7,10 @@ const global_allocator = @import("global_allocator.zig");
 const global_arena_handler = @import("global_arena_handler.zig");
 const static_config = @import("static_config.zig");
 const utils = @import("utils.zig");
+const span_file = @import("span.zig");
 
 const SpanList = @import("SpanList.zig");
-const Span = @import("Span.zig");
+const Span = span_file.Span;
 const DeferredSpanList = @import("DeferredSpanList.zig");
 const JdzAllocConfig = jdz_allocator.JdzAllocConfig;
 const SizeClass = static_config.SizeClass;
