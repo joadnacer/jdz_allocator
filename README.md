@@ -1,13 +1,11 @@
 # jdz_allocator: A Zig General Purpose Memory Allocator
 jdz_allocator is an original general purpose allocator inspired by Mattias Jansson's [rpmalloc](https://github.com/mjansson/rpmalloc) and Microsoft's [mimalloc](https://github.com/microsoft/mimalloc). Although it currently passes all mimalloc-bench tests without faults, it is not yet battle-tested and may error under certain loads or configurations.
 
-In its default configuration, it uses no global or threadlocal vars, making it compatible with Zig allocator design. This allows it to function without the need for any `deinitThread` calls while still achieving reasonable multi-threaded performance. It may induce false sharing in the case that `N allocating threads > config.shared_arena_batch_size` (I am currently writing a more in-depth explanation of this issue as it relates to Zig allocators).
+In its default configuration, it uses no global or threadlocal vars, making it compatible with Zig allocator design. This allows it to function without the need for any `deinitThread` calls while still achieving reasonable multi-threaded performance. It may induce false sharing in the case that `N allocating threads > config.shared_arena_batch_size` - I believe this is unavoidable when not using threadlocal variables.
 
 For optimal performance, a global-state-based allocator is available under `jdz_allocator.JdzGlobalAllocator`. With this allocator, make sure to call `deinitThread` before thread termination to free thread memory for re-use. This allocator exists as a singleton-per-configuration, with distinct instances existing for different configs.
 
-Please note that this allocator is a work in progress, and has not yet been thoroughly tested. Usage and bug reports are appreciated and will help contribute to this allocator's completion.
-
-Performance is also still being worked on, with a few obvious targets for improvement.
+Please note that this allocator is a work in progress, and has not yet been thoroughly tested. Usage and bug reports are appreciated and will help contribute to this allocator's completion. Performance is also still being worked on. Contributions are welcome.
 
 This allocator currently does not support page sizes larger than 64KiB.
 
@@ -22,7 +20,7 @@ Benchmarks were run on an 8 core Intel i7-11800H @2.30GHz on Linux in ReleaseFas
 
 Benchmarks can be run as follows: `zig run -O ReleaseFast src/bench.zig -lc -- [num_threads...]`.
 
-src/bench.zig in this repo does not contain rpmalloc or zimalloc - more complete benchmarks will eventually be posted to a parallel repository.
+The allocator can also be linked via LD_PRELOAD for benchmarking with mimalloc-bench using the shared libraries outputted on build - libjdzglobal, libjdzshared and libjdzglobalwrap - the latter adding threadlocal arena deinit calls on pthread destructor.
 
 ### Performance
 ![image](https://i.imgur.com/X93jgs2.png)
@@ -33,7 +31,7 @@ zimalloc was excluded from the memory usage charts due to too high memory usage 
 ![image](https://i.imgur.com/MINQn7b.png)
 
 # Usage
-Currently this project has been built for Zig 0.11.0. The allocator can be used as follows:
+Current master is written in Zig 0.12.0-dev.3522+b88ae8dbd. The allocator can be used as follows:
 
 Create a build.zig.zon file like this:
 ```zig
@@ -43,7 +41,7 @@ Create a build.zig.zon file like this:
 
     .dependencies = .{
         .jdz_allocator = .{
-            .url = "https://github.com/joadnacer/jdz_allocator/archive/9a1937df9f06967e8a1d529e0be6c732d6322c7b.tar.gz",
+            .url = "https://github.com/joadnacer/jdz_allocator/archive/a34e18705529adf8c1dd6e9afb9f38defa9761e8.tar.gz",
             .hash = "1220e341421a18a8682c5707ed52ef7e60d1d40a723bfa9c9bf16d900fb57c21d480" },
     },
 }
@@ -117,7 +115,5 @@ Arenas consist of the following:
   <li>Large Caches: A non-threadsafe array of bounded stacks, used to cache large spans by span count.</li>
   <li>Map Cache: A non-threadsafe array of bounded stacks, used to cache spans that have been mapped but not yet claimed.</li>
 </ul>
-
-Spans, the span stack and the global arena handler's arena list (which is not ABA safe, unlike the non-global arena handler's) are currently protected with mutexes. This will likely be improved in the future, with the first two needing to be benchmarked with cross-thread frees.
 
 The global allocator also makes use of global caches - one for single spans and one for large spans, implemented as bounded MPMC queues. Upon filling of an arena's local caches, or thread deinit, spans will be freed to the global cache to be reused by other arenas.
