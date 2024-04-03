@@ -18,14 +18,13 @@ const page_size = static_config.page_size;
 const mod_page_size = static_config.mod_page_size;
 const free_list_null = static_config.free_list_null;
 
-const deferred_pending_free: usize = @bitCast(@as(isize, -1));
+const invalid_pointer: usize = std.mem.alignBackward(usize, std.math.maxInt(usize), static_config.small_granularity);
 
 const Self = @This();
 
 arena: *anyopaque,
 free_list: usize,
 deferred_free_list: usize,
-deferred_lock: RwLock,
 full: bool,
 next: ?*Self,
 prev: ?*Self,
@@ -105,7 +104,6 @@ pub fn initialiseFreshSpan(self: *Self, arena: *anyopaque, size_class: SizeClass
         .class = size_class,
         .free_list = free_list_null,
         .deferred_free_list = free_list_null,
-        .deferred_lock = .{},
         .full = false,
         .next = null,
         .prev = null,
@@ -126,7 +124,6 @@ pub fn initialiseFreshLargeSpan(self: *Self, arena: *anyopaque, span_count: usiz
         .free_list = free_list_null,
         .deferred_free_list = free_list_null,
         .full = false,
-        .deferred_lock = .{},
         .next = null,
         .prev = null,
         .block_count = 0,
@@ -219,18 +216,17 @@ inline fn pushFreeListElement(self: *Self, ptr: [*]u8) void {
 inline fn pushDeferredFreeListElement(self: *Self, ptr: [*]u8) void {
     const block: *usize = @ptrCast(@alignCast(ptr));
 
-    self.deferred_lock.lockShared();
-    defer self.deferred_lock.unlockShared();
-
     while (true) {
-        block.* = self.deferred_free_list;
+        block.* = @atomicRmw(usize, &self.deferred_free_list, .Xchg, invalid_pointer, .Acquire);
 
-        if (@cmpxchgWeak(usize, &self.deferred_free_list, block.*, @intFromPtr(block), .Monotonic, .Monotonic) == null) {
-            _ = @atomicRmw(u16, &self.deferred_frees, .Add, 1, .Monotonic);
-
-            return;
+        if (block.* != invalid_pointer) {
+            break;
         }
     }
+
+    self.deferred_frees += 1;
+
+    @atomicStore(usize, &self.deferred_free_list, @intFromPtr(block), .Release);
 }
 
 inline fn freeDeferredList(self: *Self) bool {
@@ -238,13 +234,17 @@ inline fn freeDeferredList(self: *Self) bool {
 
     if (self.deferred_free_list == free_list_null) return false;
 
-    self.deferred_lock.lock();
-    defer self.deferred_lock.unlock();
+    while (true) {
+        self.free_list = @atomicRmw(usize, &self.deferred_free_list, .Xchg, invalid_pointer, .Acquire);
 
-    self.free_list = self.deferred_free_list;
+        if (self.free_list != invalid_pointer) {
+            break;
+        }
+    }
     self.block_count -= self.deferred_frees;
-    self.deferred_free_list = free_list_null;
     self.deferred_frees = 0;
+
+    @atomicStore(usize, &self.deferred_free_list, free_list_null, .Release);
 
     return true;
 }
