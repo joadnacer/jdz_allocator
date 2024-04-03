@@ -29,6 +29,7 @@ pub fn BoundedMpmcQueue(comptime T: type, comptime buffer_size: usize) type {
         pub fn init() BoundedMpmcQueue(T, buffer_size) {
             var buf: [buffer_size]Cell = undefined;
 
+            @setEvalBranchQuota(10000);
             for (&buf, 0..) |*cell, i| {
                 cell.sequence = Atomic(usize).init(i);
             }

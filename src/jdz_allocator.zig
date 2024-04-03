@@ -32,7 +32,7 @@ pub const JdzAllocConfig = struct {
     map_cache_limit: u32 = 16,
 
     /// global cache multiplier
-    global_cache_multiplier: u32 = 4,
+    global_cache_multiplier: u32 = 8,
 
     /// percentage overhead applied to span count when looking for a large span in cache
     /// increases cache hits and memory usage, but does hurt performance
