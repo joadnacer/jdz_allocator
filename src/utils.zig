@@ -9,8 +9,9 @@ const JdzAllocConfig = jdz_allocator.JdzAllocConfig;
 const SizeClass = static_config.SizeClass;
 
 const Span = span_file.Span;
-const Atomic = std.atomic.Atomic;
-const Ordering = std.atomic.Ordering;
+const Value = std.atomic.Value;
+const AtomicOrder = std.builtin.AtomicOrder;
+
 const assert = std.debug.assert;
 
 const usize_bits_subbed = @bitSizeOf(usize) - 1;
@@ -89,8 +90,8 @@ pub inline fn roundUpToPowerOfTwo(n: usize) usize {
     return @as(usize, 1) << (usize_bits_subbed - @as(log2_usize_type, @truncate(@clz(n))));
 }
 
-pub inline fn tryCASAddOne(atomic_ptr: *Atomic(usize), val: usize, success_ordering: Ordering) ?usize {
-    return atomic_ptr.tryCompareAndSwap(val, val + 1, success_ordering, .Monotonic);
+pub inline fn tryCASAddOne(atomic_ptr: *Value(usize), val: usize, success_ordering: AtomicOrder) ?usize {
+    return atomic_ptr.cmpxchgWeak(val, val + 1, success_ordering, .monotonic);
 }
 
 pub inline fn resetLinkedSpan(span: *Span) void {

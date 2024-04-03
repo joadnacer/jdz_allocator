@@ -16,12 +16,12 @@ pub fn write(self: *Self, span: *Span) void {
     while (true) {
         span.next = self.head;
 
-        if (@cmpxchgWeak(?*Span, &self.head, span.next, span, .Monotonic, .Monotonic) == null) {
+        if (@cmpxchgWeak(?*Span, &self.head, span.next, span, .monotonic, .monotonic) == null) {
             return;
         }
     }
 }
 
 pub fn getAndRemoveList(self: *Self) ?*Span {
-    return @atomicRmw(?*Span, &self.head, .Xchg, null, .Monotonic);
+    return @atomicRmw(?*Span, &self.head, .Xchg, null, .monotonic);
 }

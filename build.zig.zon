@@ -2,4 +2,5 @@
     .name = "jdz_allocator",
     .version = "0.0.2",
     .dependencies = .{},
+    .paths = .{""},
 }

@@ -5,17 +5,17 @@ pub const Lock = enum {
     locked,
 
     pub fn tryAcquire(lock: *Lock) bool {
-        return @cmpxchgStrong(Lock, lock, .unlocked, .locked, .Acquire, .Monotonic) == null;
+        return @cmpxchgStrong(Lock, lock, .unlocked, .locked, .acquire, .monotonic) == null;
     }
 
     pub fn acquire(lock: *Lock) void {
-        while (@cmpxchgWeak(Lock, lock, .unlocked, .locked, .Acquire, .Monotonic) != null) {
+        while (@cmpxchgWeak(Lock, lock, .unlocked, .locked, .acquire, .monotonic) != null) {
             std.atomic.spinLoopHint();
         }
     }
 
     pub fn release(lock: *Lock) void {
-        @atomicStore(Lock, lock, .unlocked, .Release);
+        @atomicStore(Lock, lock, .unlocked, .release);
     }
 };
 

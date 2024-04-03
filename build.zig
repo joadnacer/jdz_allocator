@@ -5,7 +5,7 @@ pub fn build(b: *std.Build) !void {
 
     const optimize = b.standardOptimizeOption(.{});
 
-    const jdz_allocator = b.addModule("jdz_allocator", .{ .source_file = .{
+    const jdz_allocator = b.addModule("jdz_allocator", .{ .root_source_file = .{
         .path = "src/jdz_allocator.zig",
     } });
 
@@ -26,7 +26,7 @@ pub fn build(b: *std.Build) !void {
         .link_libc = true,
     });
 
-    libjdzglobal.addModule("jdz_allocator", jdz_allocator);
+    libjdzglobal.root_module.addImport("jdz_allocator", jdz_allocator);
 
     b.installArtifact(libjdzglobal);
 
@@ -43,7 +43,7 @@ pub fn build(b: *std.Build) !void {
         .flags = &[_][]const u8{},
     });
 
-    libjdzglobalwrap.addModule("jdz_allocator", jdz_allocator);
+    libjdzglobalwrap.root_module.addImport("jdz_allocator", jdz_allocator);
 
     b.installArtifact(libjdzglobalwrap);
 
@@ -55,7 +55,7 @@ pub fn build(b: *std.Build) !void {
         .link_libc = true,
     });
 
-    libjdzshared.addModule("jdz_allocator", jdz_allocator);
+    libjdzshared.root_module.addImport("jdz_allocator", jdz_allocator);
 
     b.installArtifact(libjdzshared);
 

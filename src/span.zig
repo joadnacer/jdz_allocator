@@ -8,7 +8,7 @@ const span_file = @import("span.zig");
 const SpanList = @import("SpanList.zig");
 const JdzAllocConfig = jdz_allocator.JdzAllocConfig;
 const SizeClass = static_config.SizeClass;
-const Atomic = std.atomic.Atomic;
+const Value = std.atomic.Value;
 
 const assert = std.debug.assert;
 
@@ -217,7 +217,7 @@ pub const Span = extern struct {
         const block: *usize = @ptrCast(@alignCast(ptr));
 
         while (true) {
-            block.* = @atomicRmw(usize, &self.deferred_free_list, .Xchg, invalid_pointer, .Acquire);
+            block.* = @atomicRmw(usize, &self.deferred_free_list, .Xchg, invalid_pointer, .acquire);
 
             if (block.* != invalid_pointer) {
                 break;
@@ -226,7 +226,7 @@ pub const Span = extern struct {
 
         self.deferred_frees += 1;
 
-        @atomicStore(usize, &self.deferred_free_list, @intFromPtr(block), .Release);
+        @atomicStore(usize, &self.deferred_free_list, @intFromPtr(block), .release);
     }
 
     inline fn freeDeferredList(self: *Span) bool {
@@ -235,7 +235,7 @@ pub const Span = extern struct {
         if (self.deferred_free_list == free_list_null) return false;
 
         while (true) {
-            self.free_list = @atomicRmw(usize, &self.deferred_free_list, .Xchg, invalid_pointer, .Acquire);
+            self.free_list = @atomicRmw(usize, &self.deferred_free_list, .Xchg, invalid_pointer, .acquire);
 
             if (self.free_list != invalid_pointer) {
                 break;
@@ -244,7 +244,7 @@ pub const Span = extern struct {
         self.block_count -= self.deferred_frees;
         self.deferred_frees = 0;
 
-        @atomicStore(usize, &self.deferred_free_list, free_list_null, .Release);
+        @atomicStore(usize, &self.deferred_free_list, free_list_null, .release);
 
         return true;
     }

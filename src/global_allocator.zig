@@ -11,7 +11,7 @@ const span_file = @import("span.zig");
 
 const Span = span_file.Span;
 const JdzAllocConfig = jdz.JdzAllocConfig;
-const Atomic = std.atomic.Atomic;
+const Value = std.atomic.Value;
 
 const log2 = std.math.log2;
 const testing = std.testing;
