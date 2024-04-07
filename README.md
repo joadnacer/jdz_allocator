@@ -9,7 +9,12 @@ Please note that this allocator is a work in progress, and has not yet been thor
 
 This allocator currently does not support page sizes larger than 64KiB.
 
-# Benchmarks
+# mimalloc-bench
+The allocator has been benchmarked in mimalloc-bench against InKryption's [rpmalloc Zig port](https://github.com/InKryption/rpmalloc-zig-port), dweiller's [zimalloc](https://github.com/dweiller/zimalloc) and c malloc.
+
+Results here: https://pastebin.com/QDA2UW67
+
+# Zig Benchmarks
 The allocator has been benchmarked against Zig std's GeneralPurposeAllocator and c_allocator, as well as InKryption's [rpmalloc Zig port](https://github.com/InKryption/rpmalloc-zig-port) and dweiller's [zimalloc](https://github.com/dweiller/zimalloc). Please note that any mention of rpmalloc in these benchmarks is in reference to the Zig port, not to the original C implementation.
 
 Benchmarks consist of 75,000,000 linearly distributed allocations of 1-80000 bytes per thread, with no cross-thread frees. This is an unrealistic benchmark, and will be improved to further guide development.
