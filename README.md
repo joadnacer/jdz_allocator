@@ -42,7 +42,7 @@ Create a build.zig.zon file like this:
     .dependencies = .{
         .jdz_allocator = .{
             .url = "https://github.com/joadnacer/jdz_allocator/archive/a34e18705529adf8c1dd6e9afb9f38defa9761e8.tar.gz",
-            .hash = "1220e341421a18a8682c5707ed52ef7e60d1d40a723bfa9c9bf16d900fb57c21d480" },
+            .hash = "122041a5792fa779a0aff08c1fb75e8ab847b8ec102666c309dd0fe07550d3249249" },
     },
 }
 
