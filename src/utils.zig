@@ -87,7 +87,10 @@ pub inline fn getHugeSpanCount(len: usize) ?usize {
 }
 
 pub inline fn roundUpToPowerOfTwo(n: usize) usize {
-    return @as(usize, 1) << (usize_bits_subbed - @as(log2_usize_type, @truncate(@clz(n))));
+    assert(n > 1);
+    assert(n <= std.math.maxInt(usize) / 2 + 1);
+
+    return @as(usize, 1) << @truncate(@as(usize, @bitSizeOf(usize) - @clz(n - 1)));
 }
 
 pub inline fn tryCASAddOne(atomic_ptr: *Value(usize), val: usize, success_ordering: AtomicOrder) ?usize {

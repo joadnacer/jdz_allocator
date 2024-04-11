@@ -91,6 +91,9 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
 
             if (size <= span_header_size) {
                 const aligned_block_size: usize = utils.roundUpToPowerOfTwo(size);
+
+                assert(aligned_block_size >= size);
+
                 return allocate(aligned_block_size);
             }
 
@@ -676,4 +679,22 @@ test "empty large span gets cached to global and reused" {
     try testing.expect(alloc_one.ptr == alloc_two.ptr);
 
     allocator.free(alloc_two);
+}
+
+test "consecutive overalignment" {
+    const jdz_allocator = JdzGlobalAllocator(.{});
+    defer jdz_allocator.deinit();
+
+    const allocator = jdz_allocator.allocator();
+
+    const overaligned_sizes = [_]usize{ 192, 192, 192 };
+    var buffers: [overaligned_sizes.len][]const u8 = undefined;
+
+    for (overaligned_sizes, &buffers) |overaligned_size, *buffers_slot| {
+        buffers_slot.* = try allocator.alignedAlloc(u8, 64, overaligned_size);
+    }
+
+    for (buffers) |buffer| {
+        allocator.free(buffer);
+    }
 }
