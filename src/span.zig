@@ -70,10 +70,24 @@ pub const Span = extern struct {
 
         self.block_count += 1;
 
+        const next_page = self.alloc_ptr + page_size - (self.alloc_ptr & mod_page_size);
+        const end_span = @intFromPtr(self) + span_size;
+        const target = @min(end_span, next_page);
+        const bytes_to_fill = target - self.alloc_ptr;
+        const blocks_to_add = bytes_to_fill / self.class.block_size;
+
         const res: [*]u8 = @ptrFromInt(self.alloc_ptr);
         self.alloc_ptr += self.class.block_size;
 
-        self.allocatePage();
+        if (blocks_to_add > 1) {
+            self.free_list = self.alloc_ptr;
+
+            for (1..blocks_to_add) |_| {
+                self.pushFreeListElementForwardPointing();
+            }
+
+            @as(*usize, @ptrFromInt(self.alloc_ptr - self.class.block_size)).* = free_list_null;
+        }
 
         return res;
     }
@@ -186,24 +200,6 @@ pub const Span = extern struct {
             const block_offset = @intFromPtr(buf.ptr) - start_alloc_ptr;
 
             return buf.ptr - block_offset % self.class.block_size;
-        }
-    }
-
-    inline fn allocatePage(self: *Span) void {
-        const next_page = self.alloc_ptr + page_size - (self.alloc_ptr & mod_page_size);
-        const end_span = @intFromPtr(self) + span_size;
-        const target = @min(end_span, next_page);
-        const bytes_to_fill = target - self.alloc_ptr;
-        const blocks_to_add = bytes_to_fill / self.class.block_size;
-
-        if (blocks_to_add != 0) {
-            self.free_list = self.alloc_ptr;
-
-            for (0..blocks_to_add) |_| {
-                self.pushFreeListElementForwardPointing();
-            }
-
-            @as(*usize, @ptrFromInt(self.alloc_ptr - self.class.block_size)).* = free_list_null;
         }
     }
 
