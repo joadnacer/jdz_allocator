@@ -115,12 +115,18 @@ pub const Span = extern struct {
     }
 
     pub fn initialiseFreshLargeSpan(self: *Span, arena: *anyopaque, span_count: usize) void {
+        assert(static_config.large_max <= std.math.maxInt(u32));
+
         self.* = .{
             .arena = arena,
             .initial_ptr = self.initial_ptr,
             .alloc_ptr = @intFromPtr(self) + span_header_size,
             .alloc_size = self.alloc_size,
-            .class = undefined,
+            .class = .{
+                .block_size = @truncate(span_count * span_size - span_header_size),
+                .class_idx = undefined,
+                .block_max = 1,
+            },
             .free_list = free_list_null,
             .deferred_free_list = free_list_null,
             .full = false,

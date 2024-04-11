@@ -97,7 +97,7 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
                 return allocate(aligned_block_size);
             }
 
-            assert(alignment <= page_size);
+            assert(alignment < span_effective_size);
 
             if (allocate(size + alignment)) |block_ptr| {
                 const align_mask: usize = alignment - 1;
@@ -137,16 +137,15 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
         fn free(ctx: *anyopaque, buf: []u8, log2_align: u8, ret_addr: usize) void {
             _ = ctx;
             _ = ret_addr;
+            _ = log2_align;
 
-            const alignment = @as(usize, 1) << @intCast(log2_align);
-            const size = @max(alignment, buf.len);
             const span = utils.getSpan(buf.ptr);
 
             const arena: *Arena = @ptrCast(@alignCast(span.arena));
 
-            if (size <= medium_max) {
+            if (span.class.block_size <= medium_max) {
                 arena.freeSmallOrMedium(span, buf);
-            } else if (size <= large_max) {
+            } else if (span.class.block_size <= large_max) {
                 arena.cacheLargeSpanOrFree(span);
             } else {
                 arena.freeHuge(span);
@@ -203,6 +202,7 @@ pub fn JdzGlobalAllocator(comptime config: JdzAllocConfig) type {
 const SizeClass = static_config.SizeClass;
 
 const span_size = static_config.span_size;
+const span_effective_size = static_config.span_effective_size;
 const span_header_size = static_config.span_header_size;
 const span_upper_mask = static_config.span_upper_mask;
 
