@@ -38,17 +38,17 @@ pub const Span = extern struct {
     deferred_frees: u16,
 
     pub inline fn pushFreeList(self: *Span, buf: []u8) void {
-        const ptr = self.getBlockPtr(buf);
+        const ptr = @call(.always_inline, Span.getBlockPtr, .{ self, buf });
 
-        self.pushFreeListElement(ptr);
+        @call(.always_inline, Span.pushFreeListElement, .{ self, ptr });
 
         self.block_count -= 1;
     }
 
     pub inline fn pushDeferredFreeList(self: *Span, buf: []u8) void {
-        const ptr = self.getBlockPtr(buf);
+        const ptr = @call(.always_inline, Span.getBlockPtr, .{ self, buf });
 
-        self.pushDeferredFreeListElement(ptr);
+        @call(.always_inline, Span.pushDeferredFreeListElement, .{ self, ptr });
     }
 
     pub fn allocate(self: *Span) [*]u8 {

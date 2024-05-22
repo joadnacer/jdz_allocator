@@ -86,29 +86,29 @@ pub fn JdzAllocator(comptime config: JdzAllocConfig) type {
             const self: *Self = @ptrCast(@alignCast(ctx));
 
             if (log2_align <= small_granularity_shift) {
-                return self.allocate(len);
+                return @call(.always_inline, allocate, .{ self, len });
             }
 
             const alignment = @as(usize, 1) << @intCast(log2_align);
             const size = @max(alignment, len);
 
             if (size <= span_header_size) {
-                const aligned_block_size: usize = utils.roundUpToPowerOfTwo(size);
+                const aligned_block_size: usize = @call(.always_inline, utils.roundUpToPowerOfTwo, .{size});
 
                 assert(aligned_block_size >= size);
 
-                return self.allocate(aligned_block_size);
+                return @call(.always_inline, allocate, .{ self, aligned_block_size });
             }
 
             assert(alignment < span_effective_size);
 
-            if (self.allocate(size + alignment)) |block_ptr| {
+            if (@call(.always_inline, allocate, .{ self, size + alignment })) |block_ptr| {
                 const align_mask: usize = alignment - 1;
                 var ptr = block_ptr;
 
                 if (@intFromPtr(ptr) & align_mask != 0) {
                     ptr = @ptrFromInt((@intFromPtr(ptr) & ~align_mask) + alignment);
-                    const span = utils.getSpan(ptr);
+                    const span = @call(.always_inline, utils.getSpan, .{ptr});
 
                     span.aligned_blocks = true;
                 }
@@ -125,7 +125,7 @@ pub fn JdzAllocator(comptime config: JdzAllocConfig) type {
             const alignment = @as(usize, 1) << @intCast(log2_align);
             const aligned = (@intFromPtr(buf.ptr) & (alignment - 1)) == 0;
 
-            const span = utils.getSpan(buf.ptr);
+            const span = @call(.always_inline, utils.getSpan, .{buf.ptr});
 
             if (buf.len <= span_max) return new_len <= span.class.block_size and aligned;
             if (buf.len <= large_max) return new_len <= span.alloc_size - (span.alloc_ptr - span.initial_ptr) and aligned;
@@ -141,35 +141,38 @@ pub fn JdzAllocator(comptime config: JdzAllocConfig) type {
             _ = ret_addr;
             _ = log2_align;
 
-            const span = utils.getSpan(buf.ptr);
+            const span = @call(.always_inline, utils.getSpan, .{buf.ptr});
 
             const arena: *Arena = @ptrCast(@alignCast(span.arena));
 
             if (span.class.block_size <= medium_max) {
-                arena.freeSmallOrMedium(span, buf);
+                @call(.always_inline, Arena.freeSmallOrMedium, .{ arena, span, buf });
             } else if (span.class.block_size <= large_max) {
-                arena.cacheLargeSpanOrFree(span);
+                @call(.always_inline, Arena.cacheLargeSpanOrFree, .{ arena, span });
             } else {
-                arena.freeHuge(span);
+                @call(.always_inline, Arena.freeHuge, .{ arena, span });
             }
         }
 
         fn allocate(self: *Self, size: usize) ?[*]u8 {
-            const arena = self.arena_handler.getArena() orelse return null;
-            defer arena.release();
+            const arena = @call(.always_inline, SharedArenaHandler.getArena, .{&self.arena_handler}) orelse return null;
+            defer @call(.always_inline, Arena.release, .{arena});
 
-            return if (size <= small_max)
-                arena.allocateToSpan(utils.getSmallSizeClass(size))
-            else if (size <= medium_max)
-                return arena.allocateToSpan(utils.getMediumSizeClass(size))
-            else if (size <= span_max)
-                return arena.allocateOneSpan(span_class)
-            else if (size <= large_max)
-                return arena.allocateToLargeSpan(utils.getSpanCount(size))
-            else {
-                const span_count = utils.getHugeSpanCount(size) orelse return null;
-                return arena.allocateHuge(span_count);
-            };
+            if (size <= small_max) {
+                const size_class = @call(.always_inline, utils.getSmallSizeClass, .{size});
+                return @call(.always_inline, Arena.allocateToSpan, .{ arena, size_class });
+            } else if (size <= medium_max) {
+                const size_class = @call(.always_inline, utils.getMediumSizeClass, .{size});
+                return @call(.always_inline, Arena.allocateToSpan, .{ arena, size_class });
+            } else if (size <= span_max) {
+                return @call(.always_inline, Arena.allocateOneSpan, .{ arena, span_class });
+            } else if (size <= large_max) {
+                const span_count = @call(.always_inline, utils.getSpanCount, .{size});
+                return @call(.always_inline, Arena.allocateToLargeSpan, .{ arena, span_count });
+            } else {
+                const span_count = @call(.always_inline, utils.getHugeSpanCount, .{size}) orelse return null;
+                return @call(.always_inline, Arena.allocateHuge, .{ arena, span_count });
+            }
         }
 
         pub fn usableSize(self: *Self, ptr: *anyopaque) usize {

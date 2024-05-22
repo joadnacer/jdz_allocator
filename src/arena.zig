@@ -123,7 +123,8 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             assert(size_class.class_idx != span_class.class_idx);
 
             if (self.free_lists[size_class.class_idx].* != free_list_null) {
-                return self.spans[size_class.class_idx].head.?.popFreeListElement();
+                const head = self.spans[size_class.class_idx].head.?;
+                return @call(.always_inline, Span.popFreeListElement, .{head});
             }
 
             return self.allocateGeneric(size_class);
@@ -602,30 +603,30 @@ pub fn Arena(comptime config: JdzAllocConfig, comptime is_threadlocal: bool) typ
             freeSmallOrMediumShared;
 
         inline fn freeSmallOrMediumThreadLocal(self: *Self, span: *Span, buf: []u8) void {
-            if (self == GlobalArenaHandler.getThreadArena()) {
-                span.pushFreeList(buf);
+            if (self == @call(.always_inline, GlobalArenaHandler.getThreadArena, .{})) {
+                @call(.always_inline, Span.pushFreeList, .{ span, buf });
 
-                self.handleSpanNoLongerFull(span);
+                @call(.always_inline, handleSpanNoLongerFull, .{ self, span });
             } else {
-                span.pushDeferredFreeList(buf);
+                @call(.always_inline, Span.pushDeferredFreeList, .{ span, buf });
 
-                self.handleSpanNoLongerFullDeferred(span);
+                @call(.always_inline, handleSpanNoLongerFullDeferred, .{ self, span });
             }
         }
 
         inline fn freeSmallOrMediumShared(self: *Self, span: *Span, buf: []u8) void {
-            const tid = getThreadId();
+            const tid = @call(.always_inline, getThreadId, .{});
 
-            if (self.thread_id == tid and self.tryAcquire()) {
-                defer self.release();
+            if (self.thread_id == tid and @call(.always_inline, Self.tryAcquire, .{self})) {
+                defer @call(.always_inline, Self.release, .{self});
 
-                span.pushFreeList(buf);
+                @call(.always_inline, Span.pushFreeList, .{ span, buf });
 
-                self.handleSpanNoLongerFull(span);
+                @call(.always_inline, handleSpanNoLongerFull, .{ self, span });
             } else {
-                span.pushDeferredFreeList(buf);
+                @call(.always_inline, Span.pushDeferredFreeList, .{ span, buf });
 
-                self.handleSpanNoLongerFullDeferred(span);
+                @call(.always_inline, handleSpanNoLongerFullDeferred, .{ self, span });
             }
         }
 
