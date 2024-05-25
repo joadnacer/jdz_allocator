@@ -36,7 +36,7 @@ zimalloc was excluded from the memory usage charts due to too high memory usage 
 ![image](https://i.imgur.com/MINQn7b.png)
 
 # Usage
-Current master is written in Zig 0.12.0-dev.3522+b88ae8dbd. The allocator can be used as follows:
+Current master is written for Zig 0.12.0. The allocator can be used as follows:
 
 Create a build.zig.zon file like this:
 ```zig
@@ -60,7 +60,7 @@ const jdz_allocator = b.dependency("jdz_allocator", .{
 .optimize = optimize,
 });
 
-exe.addModule("jdz_allocator", jdz_allocator.module("jdz_allocator"));
+exe.root_module.addImport("jdz_allocator", jdz_allocator.module("jdz_allocator"));
 ```
 
 Use as follows:
