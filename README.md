@@ -7,12 +7,25 @@ For optimal performance, a global-state-based allocator is available under `jdz_
 
 Please note that this allocator is a work in progress, and has not yet been thoroughly tested. Usage and bug reports are appreciated and will help contribute to this allocator's completion. Performance is also still being worked on. Contributions are welcome.
 
+Current focus is on improving default JdzAllocator performance (possibly migrating to an arena/core model where possible with ie use of [rseq](https://google.github.io/tcmalloc/rseq.html)).
+
 This allocator currently does not support page sizes larger than 64KiB.
 
 # mimalloc-bench
 The allocator has been benchmarked in mimalloc-bench against InKryption's [rpmalloc Zig port](https://github.com/InKryption/rpmalloc-zig-port), dweiller's [zimalloc](https://github.com/dweiller/zimalloc) and c malloc.
 
-Results here: https://pastebin.com/QDA2UW67
+In the following images, jdzw refers to JdzGlobalAllocator, jdzl to JdzAllocator, calc to c_allocator, rpz to rpmalloc-zig, and zmlc to zimalloc. Please note that times of 0.0 for rpz indicate a segfault (as rpz does not correctly handle cross-thread frees). The chart is normalised to jdzw's time and capped at 2.0.
+
+### Time
+![image](https://i.imgur.com/6CHHwku.png)
+![image](https://i.imgur.com/pzWlAxa.png)
+### RSS
+![image](https://i.imgur.com/sxspFLm.png)
+![image](https://i.imgur.com/WtO0gMR.png)
+
+High RSS for jdzw on xmalloc-testN is being investigated.
+
+Raw results here: https://pastebin.com/QDA2UW67
 
 # Zig Benchmarks
 The allocator has been benchmarked against Zig std's GeneralPurposeAllocator and c_allocator, as well as InKryption's [rpmalloc Zig port](https://github.com/InKryption/rpmalloc-zig-port) and dweiller's [zimalloc](https://github.com/dweiller/zimalloc). Please note that any mention of rpmalloc in these benchmarks is in reference to the Zig port, not to the original C implementation.
