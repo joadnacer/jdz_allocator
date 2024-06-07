@@ -49,7 +49,7 @@ zimalloc was excluded from the memory usage charts due to too high memory usage 
 ![image](https://i.imgur.com/MINQn7b.png)
 
 # Usage
-Current master is written for Zig 0.12.0. The allocator can be used as follows:
+Current master is written for Zig 0.13.0. The allocator can be used as follows:
 
 Create a build.zig.zon file like this:
 ```zig
