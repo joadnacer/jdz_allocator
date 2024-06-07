@@ -5,13 +5,13 @@ pub fn build(b: *std.Build) !void {
 
     const optimize = b.standardOptimizeOption(.{});
 
-    const jdz_allocator = b.addModule("jdz_allocator", .{ .root_source_file = .{
-        .path = "src/jdz_allocator.zig",
-    } });
+    const jdz_allocator = b.addModule("jdz_allocator", .{
+        .root_source_file = b.path("src/jdz_allocator.zig"),
+    });
 
     const static_lib = b.addStaticLibrary(.{
         .name = "jdz_allocator",
-        .root_source_file = .{ .path = "src/jdz_allocator.zig" },
+        .root_source_file = b.path("src/jdz_allocator.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -20,7 +20,7 @@ pub fn build(b: *std.Build) !void {
 
     const libjdzglobal = b.addSharedLibrary(.{
         .name = "jdzglobal",
-        .root_source_file = .{ .path = "libso/libjdzglobal.zig" },
+        .root_source_file = b.path("libso/libjdzglobal.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
@@ -32,14 +32,14 @@ pub fn build(b: *std.Build) !void {
 
     const libjdzglobalwrap = b.addSharedLibrary(.{
         .name = "jdzglobalwrap",
-        .root_source_file = .{ .path = "libso/libjdzglobal.zig" },
+        .root_source_file = b.path("libso/libjdzglobal.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
     });
 
     libjdzglobalwrap.addCSourceFile(.{
-        .file = .{ .path = "libso/libjdzglobalwrap.c" },
+        .file = b.path("libso/libjdzglobalwrap.c"),
         .flags = &[_][]const u8{},
     });
 
@@ -49,7 +49,7 @@ pub fn build(b: *std.Build) !void {
 
     const libjdzshared = b.addSharedLibrary(.{
         .name = "jdzshared",
-        .root_source_file = .{ .path = "libso/libjdzshared.zig" },
+        .root_source_file = b.path("libso/libjdzshared.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
@@ -60,7 +60,7 @@ pub fn build(b: *std.Build) !void {
     b.installArtifact(libjdzshared);
 
     const tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/jdz_allocator.zig" },
+        .root_source_file = b.path("src/jdz_allocator.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -72,7 +72,7 @@ pub fn build(b: *std.Build) !void {
 
     const bench_exe = b.addExecutable(.{
         .name = "bench",
-        .root_source_file = .{ .path = "src/bench.zig" },
+        .root_source_file = b.path("src/bench.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
@@ -80,7 +80,7 @@ pub fn build(b: *std.Build) !void {
 
     const grow_shrink_bench_exe = b.addExecutable(.{
         .name = "bench",
-        .root_source_file = .{ .path = "src/grow_shrink_bench.zig" },
+        .root_source_file = b.path("src/grow_shrink_bench.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
